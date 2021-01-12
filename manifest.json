@@ -1,0 +1,15 @@
+{
+  "name": "SCI 2000 - Winter 2021",
+  "short_name": "SCI 2000 - Winter 2021",
+  "start_url": "/w21-sci2000/",
+  "scope": "/w21-sci2000/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/w21-sci2000/favicon.svg",
+      "sizes": "512x512"
+    }
+  ]
+}
