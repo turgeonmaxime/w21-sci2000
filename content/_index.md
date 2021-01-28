@@ -49,7 +49,7 @@ The course is expected to cover the following topics:
   - Relational data
   - Web scraping
   - Introduction to regular expressions
-  - (If time permites) Automation and version control
+  - (If time permits) Automation and version control
 
 Throughout the course, the applied topics above will be complemented with an introduction to statistical thinking: how to think about variability, what biases can occur in the data, and how to perform simple statistical procedures (e.g. comparing means, proportions, linear regression).
 

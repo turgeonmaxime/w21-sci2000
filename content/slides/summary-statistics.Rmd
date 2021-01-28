@@ -1,0 +1,316 @@
+---
+title: "Summary Statistics"
+draft: true
+source: true
+output: binb::metropolis
+fontsize: 12pt
+author: Max Turgeon
+institute: SCI 2000--Introduction to Data Science
+header-includes:
+  - \usefonttheme{professionalfonts}
+  - \usepackage{graphicx}
+  - \usepackage{tikzpagenodes}
+  - \usetikzlibrary{calc}
+  - \usepackage{caption}
+---
+
+```{r,setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(cache = FALSE, message = FALSE,
+                      linewidth = 50)
+```
+
+## Lecture Objectives
+
+  - Use the Central Limit Theorem to construct confidence intervals for means
+  - Manipulate data using `tidyverse` functions
+
+## Motivation
+
+  - It's one of the great paradoxes of statistics:
+    + To better understand data, summarise it.
+  - The mean/average occupies a special place, because of its nice properties.
+  - But looking at multiple summaries gives us a fuller picture.
+  
+## Mean
+
+  - Recall the definition: if we have $n$ observations $X_1, \ldots, X_n$, their **mean** (or average) is their sum divided by $n$:
+  $$\bar{X} = \frac{1}{n} \sum_{i=1}^n X_i.$$
+  - The mean is a measure of *central tendency*, i.e. where the bulk of the observations tend to fall.
+  - In `R`, we can compute the mean using the function `mean`.
+  
+## Examples {.allowframebreaks}
+
+  - We'll use the dataset `mtcars`, which comes with `R` by default.
+  - Datasets are usually stored in `data.frame`s.
+    + We can inspect `data.frame`s using `str` or `head`/`tail`.
+
+```{r}
+str(mtcars)
+```
+
+  - There are many ways to compute the average miles per gallon (`mpg`) for this dataset. I will demonstrate two ways.
+    + Extract column
+    + Use `summarise`
+  
+```{r, message = FALSE}
+# Extract column with $ and use mean function
+mean(mtcars$mpg)
+```
+
+
+```{r, message = FALSE}
+# Use summarise
+library(tidyverse)
+summarise(mtcars, mean(mpg))
+```
+
+  - In the second approach, we use the function `summarise`. The first argument is the `data.frame`; the second argument is the summary statistic we want to compute. One advantage is that we can compute many summaries in one function call.
+  
+```{r}
+# Both mean and standard deviation
+summarise(mtcars, mean(mpg), sd(mpg))
+
+# Average mpg and average qsec
+summarise(mtcars, mean(mpg), mean(qsec))
+```
+  
+
+## Central Limit Theorem {.allowframebreaks}
+
+  - The sample mean gives us some idea about the *population* mean.
+    + "What if we could measure the height of all Canadians, instead of a sample?"
+  - But how certain can we be that the mean of our data is close to the true population mean?
+  - The Central Limit Theorem tells us that, whatever the distribution of the data, its *sample mean* behaves like a normal random variable.
+  - More precisely, if we have $n$ independent observations that come from a distribution with mean $\mu$ and variance $\sigma^2$, then the sample mean is approximately normal:
+  $$ \bar{X} \approx N(\mu, \sigma^2/n).$$
+  - The most important consequence: we can construct confidence intervals for the *population* mean.
+    + For 95% CI: $\bar{X} \pm 1.96\hat{\sigma}/\sqrt{n}$, where $\hat{\sigma}$ is the *standard deviation* of the data (use the function `sd`).
+    
+\vspace{1cm}
+    
+  - Important observations:
+    + As we collect more data, the standard deviation of the data can go up or down. On the other hand, the confidence interval will become narrower and narrower.
+    + In practice, we don't really know if our data is independent, or if it all comes from the same distribution. This uncertainty has to be reflected in the strength of our conclusions about the data.
+
+## Examples {.allowframebreaks}
+
+```{r}
+# Recall
+summarise(mtcars, mean(mpg), sd(mpg))
+# 95% Confidence interval
+c(20.09062 - 1.96*6.026948/sqrt(32),
+  20.09062 + 1.96*6.026948/sqrt(32))
+```
+
+```{r}
+# Alternative: save values in variables
+# and use variables
+mean_mpg <- mean(mtcars$mpg)
+sd_mpg <- sd(mtcars$mpg)
+n <- nrow(mtcars)
+
+c(mean_mpg - 1.96*sd_mpg/sqrt(n),
+  mean_mpg + 1.96*sd_mpg/sqrt(n))
+```
+
+## Exercise
+
+\begin{center}
+Compute the \emph{average and standard deviation} for \texttt{qsec}, which is the quarter-mile time (i.e. the time it takes the car to travel a quarter mile starting from a standstill). 
+
+Compute a 95\% confidence interval for the average quarter-mile time.
+\end{center}
+
+## Solution
+
+```{r}
+mean_qsec <- mean(mtcars$qsec)
+sd_qsec <- sd(mtcars$qsec)
+n <- nrow(mtcars)
+mean_qsec
+sd_qsec
+
+c(mean_qsec - 1.96*sd_qsec/sqrt(n),
+  mean_qsec + 1.96*sd_qsec/sqrt(n))
+```
+
+## Transforming your data
+
+  - Sometimes, you want to look at a subset of the data. Or perhaps you want to compute the mean of another variable, not defined in your dataset.
+    + In other words, we need to transform the data first!
+  - All `tidyverse` functions take a `data.frame` as the first argument.
+  - A `data.frame` is a collection of vectors, all of the same length, but could be of different types.
+    + This is the main way of organizing data in `R`.
+
+## Main tidyverse functions {.allowframebreaks}
+
+  - `mutate`: Create a new variable as a function of the other variables
+```{r eval = FALSE}
+# Switch to litres per 100km
+mutate(mtcars, litres_per_100km = 235.215/mpg)
+```
+  - `filter`: Keep only rows for which some condition is `TRUE`
+```{r eval = FALSE}
+# Only keep rows where cyl is equal to 6 or 8
+filter(mtcars, cyl %in% c(6, 8))
+```
+
+## Examples {.allowframebreaks}
+
+  - Let's say we want to compute a 95% confidence interval for litres per 100km.
+  
+```{r}
+data1 <- mutate(mtcars, litres_per_100km = 235.215/mpg)
+data2 <- summarise(data1, 
+                   avg_lit = mean(litres_per_100km),
+                   sd_lit = sd(litres_per_100km))
+data2
+```
+
+
+```{r}
+data3 <- mutate(data2,
+                low_bd = avg_lit - 1.96*sd_lit/sqrt(n),
+                up_bd = avg_lit + 1.96*sd_lit/sqrt(n))
+data3
+```
+
+
+## Pipe operator
+
+  - One of the important features of the `tidyverse` is the pipe operator `%>%`
+  - It takes the output of a function (or of an expression) and uses it as input for the next function (or expression)
+
+---
+
+```{r, message = FALSE, eval = TRUE}
+library(tidyverse)
+
+count(mtcars, cyl)
+```
+
+
+```{r, message = FALSE, eval = FALSE}
+# Or with the pipe
+# mtcars becomes the first argument of count
+mtcars %>% count(cyl)
+```
+
+## Pipe operator
+
+  - In more complex examples, with multiple function calls, the pipe operator improves readability.
+```{r eval = FALSE}
+# Without pipe operator
+fit_model(prepare_data(dataset))
+# With pipe operator
+dataset %>%
+  prepare_data %>% 
+  fit_model
+```
+
+## Examples {.allowframebreaks}
+
+```{r}
+# Let's convert our previous example to use the pipe
+mtcars %>% 
+  mutate(litres_per_100km = 235.215/mpg) %>% 
+  summarise(avg_lit = mean(litres_per_100km),
+            sd_lit = sd(litres_per_100km)) %>% 
+  mutate(low_bd = avg_lit - 1.96*sd_lit/sqrt(n),
+         up_bd = avg_lit + 1.96*sd_lit/sqrt(n))
+```
+
+  - We didn't need intermediate datasets `data1`, `data2` and `data3`.
+  - It's easier to read.
+
+## Summaries by group
+
+  - We can combine `summarise` and `group_by` to create summaries for each group individually.
+```{r eval = TRUE, message = FALSE}
+# Average mpg for each value of cyl
+mtcars %>% 
+  group_by(cyl) %>% 
+  summarise(avg_mpg = mean(mpg))
+```
+
+## Examples {.allowframebreaks}
+
+```{r eval = TRUE, message = FALSE}
+# Average mpg for each value of cyl + 95% CI
+mtcars %>% 
+  group_by(cyl) %>% 
+  summarise(avg_mpg = mean(mpg),
+            sd_mpg = sd(mpg),
+            n = n()) %>% 
+  mutate(low_bd = avg_mpg - 1.96*sd_mpg/sqrt(n),
+         up_bd = avg_mpg + 1.96*sd_mpg/sqrt(n))
+```
+
+  - **Very important**: The number of observations in each group is different!
+  - This is why we computed the number of observations in each group using the function `n()`.
+  - When we compute the confidence interval, the variable `n` refers to the column `n` in the dataset, i.e. what we computed using summarise.
+  - Here, the "word" `n` refers to three different things:
+    + A function, `n()`, which counts the number of observations.
+    + A column in the dataset that we created using the function `n()`.
+    + The number of rows of `mtcars` that we computed earlier.
+  - `R` keeps track of all of these (using something called "scoping rules"), but for a human this can be confusing... It's best to avoid it if we can.
+  
+```{r eval = FALSE, message = FALSE}
+# Average mpg for each value of cyl + 95% CI
+mtcars %>% 
+  group_by(cyl) %>% 
+  summarise(avg_mpg = mean(mpg),
+            sd_mpg = sd(mpg),
+            nobs = n()) %>% 
+  mutate(low_bd = avg_mpg - 1.96*sd_mpg/sqrt(nobs),
+         up_bd = avg_mpg + 1.96*sd_mpg/sqrt(nobs))
+```
+
+## Proportions are means too!
+
+  - It may not be obvious at first, but proportions are means!
+  - If I want the proportion of apples among fruits, I can take the mean of binary observations:
+    + $X_i = 1$ if the $i$-th fruit is an apple.
+    + $X_i = 0$ otherwise.
+  - This means we can use the CLT for proportions too.
+    + **Note**: It doesn't work well when the proportion $\hat{p}$ and the number of observations $n$ are small.
+    
+## Examples {.allowframebreaks}
+
+```{r}
+summarise(mtcars, prop = mean(cyl == 6))
+```
+
+  - **Note**: If $\hat{p}$ is the proportion, then $\hat{\sigma} = \sqrt{\hat{p}(1 - \hat{p})}$.
+  
+```{r}
+n <- nrow(mtcars)
+mtcars %>% 
+  summarise(prop = mean(cyl == 6)) %>% 
+  mutate(sigma = sqrt(prop*(1 - prop)),
+         low_bd = prop - 1.96*sigma/sqrt(n),
+         up_bd = prop + 1.96*sigma/sqrt(n))
+```
+
+```{r}
+# For all values of cyl
+mtcars %>% 
+  group_by(cyl) %>% 
+  summarise(nobs = n(), prop = nobs/n) %>% 
+  mutate(sigma = sqrt(prop*(1 - prop)),
+         low_bd = prop - 1.96*sigma/sqrt(n),
+         up_bd = prop + 1.96*sigma/sqrt(n))
+```
