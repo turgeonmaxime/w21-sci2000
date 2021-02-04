@@ -1,0 +1,276 @@
+---
+title: "Linear Regression"
+draft: true
+source: true
+output: binb::metropolis
+fontsize: 12pt
+author: Max Turgeon
+institute: SCI 2000--Introduction to Data Science
+header-includes:
+  - \usefonttheme{professionalfonts}
+  - \usepackage{graphicx}
+  - \usepackage{tikzpagenodes}
+  - \usetikzlibrary{calc}
+  - \usepackage{caption}
+---
+
+```{r,setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(cache = FALSE, message = FALSE,
+                      linewidth = 50)
+```
+
+## Lecture Objectives
+
+  - Fit linear regression models using `R`.
+  - Understand the output.
+  - Compare and contrast with t-tests and ANOVA.
+
+## Motivation
+
+  - We talked about summary statistics and how to compute them for different subgroups.
+  - Even though we can compute confidence intervals for sample means, we don't really have a good way to make comparisons.
+  - That's what statistical tests are for!
+  - In SCI 2000, we will focus on **linear regression**.
+    + More general than t-tests and ANOVA.
+    + *Very* flexible.
+    
+## General notation
+
+  - Linear regression estimates the relationship between a single variable $Y$, called the *outcome variable*, and a series of variables $X_1, \ldots, X_p$, called *covariates*.
+    + Machine learning uses target and features, respectively.
+  - The outcome $Y$ is typically a continuous variable.
+    + Eg. Height, income, blood pressure, etc.
+  - The covariates $X_1, \ldots, X_p$ can be anything.
+  - We want to collect all variables $Y, X_1, \ldots, X_p$ on the same unit of observation (e.g. person, school, animal, olive oil).
+    
+## Simplest linear regression
+
+  - The simplest linear regression only has an outcome variable $Y$, no covariates.
+    + It's equivalent to a one-sample t-test.
+  - The linear regression equation can be written as
+  $$ E(Y) = \beta_0.$$
+  - In other words, we are saying the population mean of $Y$ (i.e. $E(Y)$) is equal to a parameter $\beta_0$.
+    + This notation is a bit overkill, but it will make more sense soon...
+
+## Example {.allowframebreaks}
+
+```{r message = FALSE}
+library(tidyverse)
+
+dataset <- read_csv("heart.csv")
+
+# Use function lm
+fit <- lm(age ~ 1, data = dataset)
+fit
+```
+
+```{r}
+# This is what we ran last lecture
+n <- nrow(dataset)
+dataset %>% 
+    summarise(avg_age = mean(age),
+              sd_age = sd(age)) %>% 
+    mutate(lo_bd = avg_age - 1.96*sd_age/sqrt(n),
+           up_bd = avg_age + 1.96*sd_age/sqrt(n))
+```
+
+```{r}
+# To compute confidence interval
+# use confint
+confint(fit)
+```
+
+## One binary covariate {.allowframebreaks}
+
+  - The next simplest linear regression has a single covariate $X$ which can take only two values: 0 or 1.
+  - The idea is that it encodes a binary variable.
+    + Eg. Male: 1; Female 0. CS Major: 1; Non-CS Major: 0.
+  - The linear regression equation for this situation can be written as
+  $$ E(Y|X) = \beta_0 + \beta_1 X.$$
+  - Let's unpack this:
+    + When $X = 0$, the RHS simplifies to $\beta_0$, and we get
+    $$E(Y|X = 0) = \beta_0.$$
+    + When $X = 1$,  we get
+    $$E(Y|X = 1) = \beta_0 + \beta_1.$$
+  - In other words, $\beta_0$ represents the population mean of $Y$ when $X = 0$, but $\beta_1$ represents the **difference** in population means between the two subgroups.
+    + If $\beta_1$ is significantly different from 0, then we have evidence of a difference in means between the two groups!
+
+## Example {.allowframebreaks}
+
+```{r}
+fit <- lm(age ~ sex, data = dataset)
+fit
+confint(fit)
+```
+
+```{r}
+# What if we change the coding 0/1 to female/male?
+dataset <- dataset %>% 
+    mutate(sex = if_else(sex == 1, "male", "female"))
+```
+
+\vspace{1cm}
+
+```{r}
+fit <- lm(age ~ sex, data = dataset)
+fit
+```
+
+## Summary so far
+
+  - We saw how linear regression connects the average value of an outcome variable with covariates.
+  - **Important**: the regression coefficient $\beta_1$ measures a *difference* in means.
+  - With a single binary covariate, we recover the two-sample t-test.
+
+## Exercise
+
+<center>
+Using the heart dataset, determine whether average cholesterol levels are different between men and women.
+</center>
+
+## Solution {.allowframebreaks}
+
+## One continuous covariate {.allowframebreaks}
+
+  - Next we look at the case of a single *continuous* covariate $X$
+  - The linear regression equation for this situation can also be written as
+  $$ E(Y|X) = \beta_0 + \beta_1 X.$$
+  - Let's unpack this:
+    + When $X = 0$, the RHS still simplifies to $\beta_0$, and we get
+    $$E(Y|X = 0) = \beta_0.$$
+    + Let's compare two values of $X$ that differ by 1 unit, e.g. $x$ and $x+1$. We have
+    
+\begin{align*}
+E(Y|X = x) &= \beta_0 + \beta_1x\\
+E(Y|X = x+1) &= \beta_0 + \beta_1(x+1)\\
+  &= (\beta_0 + \beta_1x) + \beta_1\\
+  &= E(Y|X = x) + \beta_1.\\
+\end{align*}
+  - Rearranging, we get
+  $$\beta_1 = E(Y|X = x+1) - E(Y|X = x).$$
+  - In other words, $\beta_1$ represents the **difference** in population means between two subgroups that differ by 1 unit in their value of the covariate $X$.
+  - $\beta_0$ still represents the population mean of $Y$ when $X = 0$.
+    + But depending on what $X$ represent (e.g. age, cholesterol), $X = 0$ may not be possible!
+
+## Example {.allowframebreaks}
+
+```{r}
+fit <- lm(age ~ chol, data = dataset)
+fit
+confint(fit)
+```
+
+  - *Interpretation*: the estimated value of $\beta_1$ is `r round(coef(fit)[2], 2)`, which means that two groups of people from the study who differ in their cholesterol levels by 1 unit on average differ in their age by `r round(coef(fit)[2], 2)` year (i.e. about two weeks), with a higher cholesterol level being associated with being older.
+  
+## Exercise
+
+<center>
+It is perhaps more natural to think of the difference in cholesterol levels for groups of different ages. Using the heart dataset, determine the average difference in cholesterol levels for people in the study whose age differ by one year.
+</center>
+
+## Solution {.allowframebreaks}
+
+```{r}
+fit <- lm(chol ~ age, data = dataset)
+fit
+confint(fit)
+```
+
+  - *Interpretation*: the estimated value of $\beta_1$ is `r round(coef(fit)[2], 2)`, which means that two groups of people from the study who differ in their age by 1 year on average differ in their cholesterol levels by `r round(coef(fit)[2], 2)` ml/dl, with being older being associated with higher cholesterol level.
+
+## Inspecting the model fit {.allowframebreaks}
+
+  - We can use a scatter plot to investigate the model fit, i.e. whether the regression equation is a good description of the data.
+    + But only really helpful when both $Y$ and the single covariate $X$ are continuous.
+  
+```{r}
+fit <- lm(chol ~ age, data = dataset)
+# Extract coefficient estimates with coef
+coef(fit)
+
+ggplot(dataset, aes(x = age, y = chol)) +
+  geom_point() +
+  geom_abline(intercept = coef(fit)[1],
+              slope = coef(fit)[2])
+```
+
+## Categorical covariate {.allowframebreaks}
+
+  - Now, let's assume we measured a continuous outcome variable $Y$ across different subgroups.
+    + For simplicity, we'll assume only three subgroups, but this can easily be generalized.
+  - Let $Z$ keep track of which subgroup an observation is from.
+    + Eg. $Z=1$ for CS major, $Z=2$ for Psych Major, and $Z=0$ for non-CS, non-Psych major.
+  - We want to compare the average value of $Y$ between all subgroups.
+    + **How can we fit this into linear regression?**
+    
+\vspace{1cm}
+    
+  - Solution: we introduce *dummy* variables $X_1$ and $X_2$.
+    + $X_1 = 1$ if $Z = 1$, and $X_1 = 0$ otherwise.
+    + $X_2 = 1$ if $Z = 2$, and $X_2 = 0$ otherwise.
+    
+| $Z$ | $X_1$ | $X_2$ |
+|-----|-------|-------|
+|  0  |   0   |   0   |
+|  1  |   1   |   0   |
+|  2  |   0   |   1   |
+
+  - The linear regression equation for this situation can then be written as
+  $$ E(Y|X) = \beta_0 + \beta_1 X_1 + \beta_2 X_2.$$
+  - Let's unpack this:
+    + When $Z = 0$, both $X_1 = 0$ and $X_2 = 0$, and so the RHS simplifies to $\beta_0$:
+    $$E(Y|Z = 0) = \beta_0.$$
+    + When $Z = 1$, we have $X_1 = 1$ and $X_2 = 0$, and so the RHS simplifies to $\beta_0 + \beta_1$:
+    $$E(Y|Z = 1) = \beta_0 + \beta_1.$$
+    + When $Z = 2$, we have $X_1 = 0$ and $X_2 = 1$, and so the RHS simplifies to $\beta_0 + \beta_2$:
+    $$E(Y|Z = 2) = \beta_0 + \beta_2.$$
+  - In other words, $\beta_1$ represents the **difference** in population means between the two subgroups $Z=0$ and $Z=1$, and $\beta_2$ represents the **difference** between the two subgroups $Z=0$ and $Z=2$
+  - $\beta_0$ still represents the population mean of $Y$ when $Z = 0$.
+  
+## Example {.allowframebreaks}
+
+```{r}
+library(tidyverse)
+library(dslabs)
+
+count(olive, region)
+```
+
+
+```{r linewidth = 60}
+fit <- lm(oleic ~ region, data = olive)
+fit
+```
+
+
+```{r}
+confint(fit)
+```
+
+### Interpretation
+
+  - The average level of oleic acid for olive oils in Northern Italy (i.e. the reference category) is $\beta_0=$ `r round(coef(fit)[1], 1)`.
+  - The average level of oleic acid for olive oils in Sardinia is $\beta_0 + \beta_1=$ `r round(sum(coef(fit)[-3]), 1)`.
+  - The average level of oleic acid for olive oils in Southern Italy is $\beta_0 + \beta_2=$ `r round(sum(coef(fit)[-2]), 1)`.
+  - The average level of oleic acid is highest in Northern Italy, and it's significantly different from that of other regions.
+    + But these confidence intervals can't tell us whether the average levels are different between Sardinia and Southern Italy.
+
+## Summary 
+
+  - We introduced linear regression as a general framework for comparing means between subgroups.
+  - We saw how one-sample and two-sample t-tests are special cases.
+  - By introducing dummy variables, we can also get ANOVA as a special case.
+  - Next lecture: we will discuss the assumptions behind linear regression.

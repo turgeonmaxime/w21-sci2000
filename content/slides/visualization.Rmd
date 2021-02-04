@@ -305,15 +305,49 @@ Use the dataset `babies_crawl` from the package `openintro` to plot the average 
   - Our two variables are `temperature` and `avg_crawling_age`
   
 ```{r}
+library(tidyverse)
+library(openintro)
+
 ggplot(babies_crawl, aes(x = temperature, 
                          y = avg_crawling_age)) +
   geom_point()
 ```
 
-
-## Bivariate density plot {.allowframebreaks}
+  - What if we want to restrict the range of temperatures?
 
 ```{r}
+# First option
+# Restrict the data before plotting
+babies_crawl %>% 
+    filter(temperature > 30, temperature < 70) %>% 
+    ggplot(aes(x = temperature,
+               y = avg_crawling_age)) +
+    geom_point()
+```
+
+
+```{r linewidth = 50}
+# Second option
+# xlim removes the points from the plot
+ggplot(babies_crawl, aes(x = temperature,
+                         y = avg_crawling_age)) +
+    geom_point() +
+    xlim(c(30, 70))
+```
+
+
+```{r}
+# Third option
+# coord_cartesian zooms in/out 
+ggplot(babies_crawl, aes(x = temperature,
+                         y = avg_crawling_age)) +
+    geom_point() +
+    coord_cartesian(xlim = c(30, 70))
+```
+
+<!-- ## Bivariate density plot {.allowframebreaks} -->
+
+```{r eval = FALSE}
 ggplot(stars, aes(x = magnitude, 
                   y = temp)) + 
   geom_density_2d()
