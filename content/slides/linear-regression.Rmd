@@ -143,6 +143,11 @@ Using the heart dataset, determine whether average cholesterol levels are differ
 
 ## Solution {.allowframebreaks}
 
+```{r}
+fit <- lm(chol ~ sex, data = dataset)
+confint(fit)
+```
+
 ## One continuous covariate {.allowframebreaks}
 
   - Next we look at the case of a single *continuous* covariate $X$
@@ -161,6 +166,7 @@ E(Y|X = x+1) &= \beta_0 + \beta_1(x+1)\\
 \end{align*}
   - Rearranging, we get
   $$\beta_1 = E(Y|X = x+1) - E(Y|X = x).$$
+  
   - In other words, $\beta_1$ represents the **difference** in population means between two subgroups that differ by 1 unit in their value of the covariate $X$.
   - $\beta_0$ still represents the population mean of $Y$ when $X = 0$.
     + But depending on what $X$ represent (e.g. age, cholesterol), $X = 0$ may not be possible!
@@ -189,7 +195,7 @@ fit
 confint(fit)
 ```
 
-  - *Interpretation*: the estimated value of $\beta_1$ is `r round(coef(fit)[2], 2)`, which means that two groups of people from the study who differ in their age by 1 year on average differ in their cholesterol levels by `r round(coef(fit)[2], 2)` ml/dl, with being older being associated with higher cholesterol level.
+  - *Interpretation*: the estimated value of $\beta_1$ is `r round(coef(fit)[2], 2)`, which means that two groups of people from the study who differ in their age by 1 year on average differ in their cholesterol levels by `r round(coef(fit)[2], 2)` mg/dl, with being older being associated with higher cholesterol level.
 
 ## Inspecting the model fit {.allowframebreaks}
 
