@@ -1,0 +1,288 @@
+---
+title: "Filtering Joins"
+draft: true
+source: true
+output: binb::metropolis
+fontsize: 12pt
+author: Max Turgeon
+institute: SCI 2000--Introduction to Data Science
+header-includes:
+  - \usefonttheme{professionalfonts}
+  - \usepackage{graphicx}
+  - \usepackage{tikzpagenodes}
+  - \usetikzlibrary{calc}
+  - \usepackage{caption}
+---
+
+```{r,setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(cache = FALSE, message = FALSE,
+                      linewidth = 50)
+```
+
+## Lecture Objectives
+
+  - Understand the difference between a mutating join and a filtering join
+  - Be able to recognize when to use each type
+  - Be able to transform datasets using set operations
+
+## Motivation
+
+  - In the previous lecture, we talked about **mutating joins**.
+    + Create new dataset by combining two datasets with a common variable
+  - Today we will talk about **filtering joins**.
+    + Filter a dataset based on its relationship with another dataset
+  - For completeness, we will also talk about set operations that can be used with relational data.
+  
+## Filtering joins in general
+
+  - The starting point is still the same:
+    + We have two `data.frame`s `x` and `y`
+    + They have a variable in common that allows us to match rows across
+  - In filtering joins, we want to filter the rows of `x` based on their relationship with the rows of `y`.
+    + In particular, the output of a filtering join is a *subset* of `x`.
+  
+## Semijoin
+
+  - In a **semijoin**, we only keep the rows of `x` with a corresponding match in `y`
+  
+<center>
+![](join-semi.png)
+</center>
+
+## Example {.allowframebreaks}
+
+```{r message = FALSE}
+library(tidyverse)
+
+df_beers <- read_csv("beers.csv")
+df_breweries <- read_csv("breweries.csv")
+```
+
+```{r}
+# Top 5 states for # breweries
+state_top5 <- df_breweries %>% 
+  count(state) %>% 
+  top_n(5)
+```
+
+
+```{r}
+state_top5
+```
+
+
+```{r}
+breweries_top5 <- semi_join(df_breweries,
+                            state_top5)
+```
+
+
+```{r}
+breweries_top5
+```
+
+```{r}
+# Only keep beers from these states
+semi_join(df_beers,
+          breweries_top5,
+          by = "brewery_id") %>% 
+  count(style, sort = TRUE)
+```
+
+## Antijoin
+
+  - In an **antijoin**, we only keep the rows of `x` *without* a corresponding match in `y`
+  
+<center>
+![](join-anti.png)
+</center>
+
+## Example {.allowframebreaks}
+
+```{r}
+# Let's look at the other states
+breweries_nottop5 <- anti_join(df_breweries,
+                               state_top5)
+```
+
+
+```{r}
+breweries_nottop5
+```
+
+```{r}
+# Only keep beers from these states
+semi_join(df_beers,
+          breweries_top5,
+          by = "brewery_id") %>% 
+  count(style, sort = TRUE)
+```
+
+## Exercise
+
+<center>
+Filter the dataset `flights` from the `nycflights13` package to only show flights with planes that have flown at least 100 flights.
+</center>
+
+## Solution {.allowframebreaks}
+
+```{r}
+library(nycflights13)
+
+planes100 <- flights %>% 
+  count(tailnum) %>% 
+  filter(n >= 100)
+```
+
+```{r}
+flights100 <- semi_join(flights,
+                        planes100)
+```
+
+```{r}
+# Do we get flights with missing
+# tail number?
+flights100 %>% 
+  filter(is.na(tailnum)) %>% 
+  nrow
+```
+
+```{r}
+# We can remove these NAs from planes100
+planes100 <- filter(planes100,
+                    !is.na(tailnum))
+# Or we can remove them from flights100
+flights100 <- filter(flights100,
+                     !is.na(tailnum))
+```
+
+## Some tips about joins
+
+  - You can join using more than one variable:
+  
+```{r eval = FALSE}
+inner_join(x, y, by = c("var1", "var2"))
+```
+
+  - You can join even when the same variable is named differently:
+  
+```{r eval = FALSE}
+inner_join(x, y, by = c("name1" = "name2"))
+```
+
+
+## Set operations {.allowframebreaks}
+
+  - Here, the setup is slightly different.
+    + We still have two `data.frame`s `x` and `y`.
+    + But we assume they have **exactly** the same variables.
+  - We want to create a new dataset `z` that will also have the same variables as `x` and `y`.
+  - There are three different set operations:
+    + **Union**: `z` has the unique observations from `x` and `y`.
+    + **Intersection**: `z` has the observations common between `x` and `y`.
+    + **Set difference**: `z` has the observations from `x` that are not in `y`.
+    
+```{r message = FALSE}
+library(tidyverse)
+df1 <- tibble(
+  x = c(1, 2),
+  y = c(1, 1)
+)
+df2 <- tibble(
+  x = c(1, 1),
+  y = c(1, 2)
+)
+```
+
+```{r}
+# Note that we get 3 rows, not 4
+# because of duplicates
+union(df1, df2)
+```
+
+
+```{r}
+intersect(df1, df2)
+```
+
+\vspace{2cm}
+
+```{r}
+setdiff(df1, df2)
+```
+
+\vspace{2cm}
+
+```{r}
+# The order is important!
+setdiff(df2, df1)
+```
+
+## Exercise
+
+<center>
+Find the states with at least 30 breweries. Create a dataset that contains information about beers from these states. Using linear regression, investigate whether there is a significant difference between the average ABV for beers from these states.
+</center>
+
+## Solution {.allowframebreaks}
+
+  - There are several ways of doing this, but a key observation is that we need the variable `state` to appear in the final dataset, otherwise we can't use it as a covariate.
+  - This suggests that the final dataset should be created using a *mutating* join.
+  - Given that we only want beers from some states, we also want to choose an **inner join**.
+  - Finally, the inner join should be between `df_beers` and the subset of `df_breweries` corresponding to these top states.
+  
+```{r}
+# One solution: group by state
+# and use n() inside filter
+breweries_30 <- df_breweries %>% 
+  group_by(state) %>% 
+  filter(n() >= 30) # n() counts per group
+
+dataset <- inner_join(df_beers,
+                      breweries_30,
+                      by = "brewery_id")
+```
+
+\vspace{2cm}
+
+```{r}
+count(dataset, state, sort = TRUE)
+```
+
+\vspace{2cm}
+
+```{r}
+fit <- lm(abv ~ state, data = dataset)
+fit
+```
+
+\vspace{2cm}
+
+```{r}
+confint(fit)
+```
+
+```{r}
+# Alternatively, we can use a semijoin
+# to create breweries_30
+breweries_top <- df_breweries %>% 
+  count(state) %>% 
+  filter(n >= 30)
+
+breweries_30 <- semi_join(df_breweries,
+                          breweries_top)
+```
+

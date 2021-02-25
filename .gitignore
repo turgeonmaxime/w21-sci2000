@@ -13,3 +13,4 @@ static/slides/*_files/
 
 *.Rhistory
 *.DS_Store
+content/.DS_Store

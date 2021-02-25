@@ -1,0 +1,269 @@
+---
+title: "Mutating Joins"
+draft: true
+source: true
+output: binb::metropolis
+fontsize: 12pt
+author: Max Turgeon
+institute: SCI 2000--Introduction to Data Science
+header-includes:
+  - \usefonttheme{professionalfonts}
+  - \usepackage{graphicx}
+  - \usepackage{tikzpagenodes}
+  - \usetikzlibrary{calc}
+  - \usepackage{caption}
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(cache = FALSE, message = FALSE,
+                      linewidth = 50)
+
+library(tidyverse)
+glimpse <- purrr::partial(glimpse, width = 50)
+```
+
+## Lecture Objectives
+
+  - Understand the difference between the different types of mutating joins
+  - Be able to choose and select the appropriate mutating join
+
+## Motivation
+
+  - For the first part of the course, we focused on the *data analysis* part of data science.
+    + It probably felt like a sped-up version of STAT 1150
+  - The datasets we analyzed were provided either as part of packages, or as a single CSV file.
+  - In the second part of the course, we will discuss some strategies for collecting and combining datasets.
+  
+## Data science life cycle
+
+![](data-science.png)
+
+Source: https://r4ds.had.co.nz/introduction.html
+
+## Relational data {.allowframebreaks}
+
+  - So far we've looked at data that fits neatly into a `data.frame`.
+    + Each row is an observation, and for each observation we collected the **same** variables.
+  - This is not the only way to store data. Let's look at an example: university course enrollment data.
+    + For every student we need to collect personal information. 
+    + For every course we need to collect specific information.
+  - Clearly these datasets should be separate; you can think of them as two different `data.frame`s.
+  - **Question**: How should we store information about which courses students are taking?
+  - Should we add the name of courses to the student `data.frame` as new variables? How many variables should we create?
+  - Should we add the name of students to the course `data.frame` as new variables? How many variables should we create?
+  - **A better solution**: Create a *new* dataset, where each row corresponds to a pair (student, course).
+  - **Why does this work?** Each student has a **unique** identifier, and so does each course. 
+  
+\vspace{1cm}
+  
+  - To create a class list:
+    + Filter the (student, course) `data.frame` to only keep pairs for a given course.
+    + Look up which students appear in the filtered dataset
+    + Keep relevant personal information (e.g. student number, major, degree)
+  - The process of "looking up" is called a **mutating join**.
+  
+## Example {.allowframebreaks}
+
+  - This dataset is separated into two CSV files:
+    + One contains a list of 2,410 US craft beers
+    + The other contains data on 510 US breweries
+  - The beers and breweries datasets have a variable in common, called `brewery_id`. 
+
+```{r message = FALSE}
+library(tidyverse)
+
+df_beers <- read_csv("beers.csv")
+df_breweries <- read_csv("breweries.csv")
+
+glimpse(df_beers)
+glimpse(df_breweries)
+```
+
+## Mutating joins
+
+  - **Mutating joins** create a new dataset by combining two datasets and respecting their relationship.
+    + This relationship is encoded by a common variable (or set of variables), often a unique identifier.
+  - The main idea is as follows:
+    + Take a row from the first dataset
+    + Find a matching row in the second dataset
+    + Create a new row by concatenating the two rows
+  - The different types of mutating joins differ in how they handle cases with no matches.
+
+## Inner join
+
+  - In inner joins, we only create a new row if we can match rows from both datasets.
+
+<center>
+![](join-inner.png)
+</center>
+
+## Example {.allowframebreaks}
+
+```{r}
+library(tidyverse)
+
+dataset <- inner_join(df_beers,
+                      df_breweries,
+                      by = "brewery_id")
+glimpse(dataset)
+```
+
+```{r}
+# dataset and df_beers have the same # of rows
+nrow(dataset) == nrow(df_beers)
+# dataset has one less than the sum of # cols
+c(ncol(dataset), ncol(df_beers), ncol(df_breweries))
+```
+
+## Exercise
+
+<center>
+Find the state with the highest average of alcohol by volume (`abv`) per beers.
+</center>
+
+## Solution {.allowframebreaks}
+
+  - Now that the datasets are joined, we can use `group_by` and `summarise`.
+  
+```{r}
+dataset %>% 
+  group_by(state) %>% 
+  summarise(avg_abv = mean(abv)) %>% 
+  filter(avg_abv == max(avg_abv))
+```
+
+```{r}
+# What went wrong?
+# Let's look at the data
+dataset %>% 
+  filter(is.na(abv)) %>% 
+  glimpse
+```
+
+```{r}
+# NA in abv trickles down to the average
+dataset %>% 
+  group_by(state) %>% 
+  summarise(avg_abv = mean(abv))
+```
+
+```{r}
+# Solution: na.rm = TRUE in mean
+dataset %>% 
+  group_by(state) %>% 
+  summarise(avg_abv = mean(abv, na.rm = TRUE)) %>% 
+  filter(avg_abv == max(avg_abv))
+```
+
+## Left/right join {.allowframebreaks}
+
+  - But what if we want to keep rows from a dataset that don't have a matching row in the other dataset?
+  - Left and right (outer) joins will do just that and replace the non-matching row with `NA`s.
+  - Left and right refer to the dataset from which we want to keep rows.
+    + `left_join(x, y)` will keep rows of `x`
+    + `right_join(x, y)` will keep rows of `y`
+
+<center>
+![](join-left-right.png)
+</center>
+
+## Example {.allowframebreaks}
+
+```{r}
+library(nycflights13)
+
+# Information about flights
+glimpse(flights)
+# Information about airplanes
+glimpse(planes)
+```
+
+```{r}
+# How many flights? How many planes?
+c(nrow(flights), nrow(planes))
+
+# How many flights have matching plane?
+inner_join(flights, planes, by = "tailnum") %>% 
+  nrow
+```
+
+```{r}
+# With left_join, we keep all flights
+left_join(flights, planes, by = "tailnum") %>% 
+  glimpse
+```
+
+## Full join
+
+ - The full join allows us to keep unmatched rows from **both** datasets.
+
+<center>
+![](join-full.png)
+</center>
+
+## Exercise
+
+<center>
+The `flights` dataset contains information about departure and arrival delays (`dep_delay` and `arr_delay`). Compute the average delays for each manufacturing year (i.e. the year the plane was manufactured). Plot the relationship between these two quantities. Do you see any evidence of an association?
+</center>
+
+## Solution {.allowframebreaks}
+
+```{r}
+# First we combine the two datasets 
+# and create tot_delay variable
+# Note: Could also use inner_join
+dataset <- left_join(flights,        
+                     planes,
+                     by = "tailnum") %>% 
+  mutate(tot_delay = dep_delay + arr_delay)
+```
+
+```{r error = TRUE}
+# Next group by year and summarise
+data_avg <- dataset %>% 
+  group_by(year) %>% 
+  summarise(avg_delay = mean(tot_delay, na.rm = TRUE))
+```
+
+```{r}
+# What happened?
+# Both flights and planes have a variable year
+# year.y refers to the one from planes
+names(dataset)
+```
+
+```{r}
+# Try again
+data_avg <- dataset %>% 
+  group_by(year.y) %>% 
+  summarise(avg_delay = mean(tot_delay, na.rm = TRUE))
+```
+
+```{r message = FALSE, warning = FALSE}
+data_avg %>% 
+  ggplot(aes(x = year.y,
+             y = avg_delay)) +
+  geom_point()
+```
+
+## Summary
+
+  - Not all data is neatly packaged into CSV files.
+  - Often the data we need is spread over multiple datasets.
+  - If these datasets have a matching variable, we can create a new dataset with matching rows using **mutating joins**.
+  - Choosing between an inner join, left/right join or full join depends on what we want to do with unmatched rows.
+    + Do we keep all of them? Only those from one of the two datasets?
