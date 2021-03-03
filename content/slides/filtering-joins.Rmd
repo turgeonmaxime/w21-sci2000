@@ -126,7 +126,7 @@ breweries_nottop5
 ```{r}
 # Only keep beers from these states
 semi_join(df_beers,
-          breweries_top5,
+          breweries_nottop5,
           by = "brewery_id") %>% 
   count(style, sort = TRUE)
 ```
