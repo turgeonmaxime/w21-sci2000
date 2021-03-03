@@ -1,0 +1,401 @@
+---
+title: "Data Visualization"
+draft: false
+source: true
+output: binb::metropolis
+fontsize: 12pt
+author: Max Turgeon
+institute: SCI 2000--Introduction to Data Science
+header-includes:
+  - \usefonttheme{professionalfonts}
+  - \usepackage{graphicx}
+  - \usepackage{tikzpagenodes}
+  - \usetikzlibrary{calc}
+  - \usepackage{caption}
+---
+
+```{r,setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(cache = FALSE, message = FALSE,
+                      linewidth = 50)
+```
+
+## Lecture Objectives
+
+  - Identify the main types of data visualization
+  - Contrast their strengths and weaknesses
+
+## Motivation
+
+  - Summary statistics are useful in doing quick comparisons.
+    + Or even statistical inference
+  - Data visualizations are an effective way of sharing *a lot* of information about a dataset.
+  - In this lecture, we'll focus on the main types of data visualizations; in the next lecture, we'll discuss important principles for **effective** visualization.
+
+## Main principles
+
+Why would we want to visualize data?
+
+  - Quality control
+  - Identify outliers
+  - Find patterns of interest (EDA)
+  - *Communicate results*
+  
+## Histogram {.allowframebreaks}
+
+  - A **histogram** represents the frequency of observations occurring in certain bins.
+    + Most software will choose default bins, but you can always change them.
+  - It is useful for displaying continuous data, and comparing its distribution across subgroups.
+
+```{r, message=FALSE}
+library(tidyverse)
+library(dslabs)
+
+dim(olive)
+
+# Create histogram for oleic acid
+ggplot(olive,
+       aes(x = oleic)) + 
+  geom_histogram()
+```
+
+```{r hist_fill, message=FALSE}
+# Look at distribution by region
+ggplot(olive,
+       aes(x = oleic, fill = region)) + 
+  geom_histogram()
+```
+
+
+```{r hist_dodge, message=FALSE}
+# Dodge instead of stack
+ggplot(olive,
+       aes(x = oleic, fill = region)) + 
+  geom_histogram(position = "dodge")
+```
+
+
+```{r hist_facet, message=FALSE}
+# Or with facets
+ggplot(olive, 
+       aes(x = oleic)) +
+  geom_histogram() +
+  facet_grid(. ~ region)
+```
+
+## Histogram--Summary
+
+  - **Histograms** help visualize the distribution of a single variable.
+    + It bins data and displays the counts in each bin
+    + But large bins can hide important features, while small bins can create artifacts.
+  - `ggplot` takes a `data.frame` as input and maps variables to different features of the graph.
+    + `oleic` is mapped to the `x`-axis
+    + `region` is mapped to the `fill` colour.
+    + **Important**: This mapping happens inside the function `aes`.
+  - `ggplot` automatically takes care of choosing the colour, drawing the limits, and printing a legend.
+  - `facet_grid` can be used to display multiple plots together, one per value of the variable.
+
+## A more complex histogram {.allowframebreaks}
+
+```{r message = FALSE}
+# Create a copy of the data to serve as background
+olive_bg <- select(olive, -region)
+ggplot(olive, aes(x = oleic)) + 
+  # Start with grey background
+  geom_histogram(data = olive_bg, 
+                 fill = 'grey') +
+  # Add colour on top
+  geom_histogram(aes(fill = region)) +
+  facet_grid(. ~ region) +
+  # Move legend to top
+  theme(legend.position = 'top')
+```
+
+## Exercise
+
+<center>
+Use the dataset `nba_players_19` from the package `openintro` to plot a histogram of the heights of basketball players.
+
+Next, use histograms to compare the height distribution of guards vs centers.
+</center>
+
+## Solution {.allowframebreaks}
+
+  - First, we plot the overall histogram.
+  
+```{r, message = FALSE}
+library(tidyverse)
+library(openintro)
+
+ggplot(nba_players_19, aes(height)) +
+  geom_histogram()
+```
+
+  - Next, we need to figure out which variable encodes the position of each player.
+    + You can look at the help page `?nba_players_19`.
+    + You can look at `str(nba_players_19)`.
+  - Then we can filter using `position`.
+  
+```{r}
+nba_players_19 %>% 
+  filter(position %in% c("Center", "Guard")) %>% 
+  ggplot(aes(height)) +
+  geom_histogram() +
+  facet_grid(~position)
+```
+
+## Density plot {.allowframebreaks}
+
+  - **Density plots** can be thought of as *smoothed* histograms.
+    + Their mathematical definition is much more involved and beyond the scope of this course.
+  - They can be used interchangeably with histograms.
+
+```{r, message=FALSE}
+ggplot(olive, aes(x = oleic)) + 
+  geom_density()
+
+# Split by region
+ggplot(olive, aes(x = oleic,
+                  fill = region)) + 
+  geom_density()
+
+# Add transparency
+ggplot(olive, aes(x = oleic,
+                  fill = region)) + 
+  geom_density(alpha = 0.5)
+
+# Alternative: stacked density plots
+ggplot(olive, aes(x = oleic,
+                  fill = region)) + 
+  geom_density(position = "stack")
+```
+
+## Density plot--Summary
+
+  - **Density plots** can be thought of as *smoothed* histograms.
+    + There is a parameter controlling the level of smoothness: too large and it will hide important features; too small and it may create artifacts.
+  - We used a different *geom* to create the plot.
+    + `geom_smooth` as opposed to `geom_histogram`.
+  - The attribute `alpha` can be used to control transparency.
+    + `alpha = 0` is completely transparent
+    + `alpha = 1` is completely opaque.
+
+## Boxplot {.allowframebreaks}
+
+  - Box plots are a simple way to display important quantiles and identify outliers
+  - Components (per Tukey):
+    + A box delimiting the first and third quartile;
+    + A line indicating the median;
+    + Whiskers corresponding to the lowest datum still within 1.5 IQR of the lower quartile, and the highest datum still within 1.5 IQR of the upper quartile;
+    + Any datum that falls outside the whiskers is considered a (potential) outlier.
+
+```{r, message=FALSE}
+ggplot(olive, aes(x = oleic)) + 
+  geom_boxplot(y = 0) # y = 0 is a dummy value
+
+# Map region to y-axis
+ggplot(olive, aes(x = oleic, 
+                  y = region)) + 
+  geom_boxplot()
+
+# Add all points on top of boxplots
+ggplot(olive, aes(x = oleic, 
+                  y = region)) + 
+  geom_boxplot() +
+  geom_point()
+
+# Add vertical noise to the points to reduce overlap
+# Note: need to remove outliers or you will get 
+#       duplicates
+ggplot(olive, aes(x = oleic, 
+                  y = region)) + 
+  geom_boxplot(outlier.colour = NA) +
+  geom_jitter(height = 0.25, width = 0) 
+
+# Flip boxplots by switching the axes
+ggplot(olive, aes(x = region, 
+                  y = oleic)) + 
+  geom_boxplot()
+```
+
+## Boxplot--Summary
+
+  - **Boxplots** are a mixture between a data visualization and a summary statistics.
+    + It is essentially a graphical depiction of the five-number summary.
+  - Widely different datasets can give rise to the same boxplot.
+    + I recommend to overlay the actual data.
+
+## Exercise
+
+<center>
+Using the dataset `nba_players_19` from the package `openintro`, compare the distribution of heights across all positions.
+</center>
+
+## Solution {.allowframebreaks}
+
+```{r}
+ggplot(nba_players_19, aes(x = position,
+                           y = height)) +
+  geom_boxplot(outlier.colour = NA) +
+  geom_jitter(height = 0, width = 0.25)
+```
+
+
+## Single-variable viz
+
+  - All three data visualizations above focused on a single continuous variable.
+  - But you can draw one such visualization for the same variable, but in different subgroups.
+    + E.g. GPA for math, biology and psychology majors.
+  - In this way, they can all be used to investigate the relationships between *one continuous and one categorical variable*.
+
+# Bivariate plots
+
+## Scatter plot {.allowframebreaks}
+
+  - The simplest way to represent the relationship between two continuous variables is a **scatter plot**.
+    + Not really suitable with categorical variables.
+  - Technically still possible with three variables, but typically more difficult to read.
+  
+```{r}
+ggplot(stars, aes(x = magnitude, 
+                  y = temp)) + 
+  geom_point()
+
+# Add colour for type of stars
+ggplot(stars, aes(x = magnitude, 
+                  y = temp,
+                  colour = type)) + 
+  geom_point()
+```
+
+```{r, echo = FALSE, eval = FALSE}
+library(scatterplot3d)
+
+greenhouse_gases %>% 
+  spread(gas, concentration) %>% 
+  with(scatterplot3d(CH4,   # x axis
+                     CO2,   # y axis
+                     N2O    # z axis
+))
+```
+
+## Exercise
+
+<center>
+Use the dataset `babies_crawl` from the package `openintro` to plot the average crawling age against the average outdoor temperature at 6 months.
+</center>
+
+## Solution {.allowframebreaks}
+
+  - First, we need to figure out the name of the variables we need to plot.
+    + You can look at the help page `?babies_crawl`.
+    + You can look at `str(babies_crawl)`.
+  - Our two variables are `temperature` and `avg_crawling_age`
+  
+```{r}
+library(tidyverse)
+library(openintro)
+
+ggplot(babies_crawl, aes(x = temperature, 
+                         y = avg_crawling_age)) +
+  geom_point()
+```
+
+  - What if we want to restrict the range of temperatures?
+
+```{r}
+# First option
+# Restrict the data before plotting
+babies_crawl %>% 
+    filter(temperature > 30, temperature < 70) %>% 
+    ggplot(aes(x = temperature,
+               y = avg_crawling_age)) +
+    geom_point()
+```
+
+
+```{r linewidth = 50}
+# Second option
+# xlim removes the points from the plot
+ggplot(babies_crawl, aes(x = temperature,
+                         y = avg_crawling_age)) +
+    geom_point() +
+    xlim(c(30, 70))
+```
+
+
+```{r}
+# Third option
+# coord_cartesian zooms in/out 
+ggplot(babies_crawl, aes(x = temperature,
+                         y = avg_crawling_age)) +
+    geom_point() +
+    coord_cartesian(xlim = c(30, 70))
+```
+
+<!-- ## Bivariate density plot {.allowframebreaks} -->
+
+```{r eval = FALSE}
+ggplot(stars, aes(x = magnitude, 
+                  y = temp)) + 
+  geom_density_2d()
+
+# We can add points on top of the contour lines
+ggplot(stars, aes(x = magnitude, 
+                  y = temp)) + 
+  geom_density_2d() +
+  geom_point()
+
+# We can colour points by star type
+# Note: colour is only defined for geom_point
+ggplot(stars, aes(x = magnitude, 
+                  y = temp)) + 
+  geom_density_2d() +
+  geom_point(aes(colour = type))
+```
+
+# Beyond two variables
+
+## Limitations
+
+  - Three-dimensional scatter plots are possible, but hard to interpret.
+  - Density plots can technically be constructed for any dimension
+    + But as the dimension increases, its performance *decreases* rapidly
+  - **Solution**: We can look at each variable one at a time and at each pairwise comparison.
+  
+## Pairs plot {.allowframebreaks}
+
+  - A pairs plot arranges these univariate summaries and pairwise comparisons along a matrix.
+  - Each variable corresponds to both a row and a column
+  - Univariate summaries appear on the diagonal, and pairwise comparisons off the diagonal.
+  - Because of symmetry, we often see a different summary of the comparison above and below the diagonal.
+  
+```{r, message = FALSE}
+library(GGally)
+
+# Select three variables
+olive_sub <- olive %>% 
+  select(eicosenoic, arachidic, linolenic)
+
+ggpairs(olive_sub)
+```
+
+\vspace{0.5in}
+
+  - As we can see, `GGally` displays the following:
+    + Scatter plots below the diagonal
+    + Density plots on the diagonal
+    + Pearson correlations above the diagonal
+  - These can all be changed---see the documentation for more information.

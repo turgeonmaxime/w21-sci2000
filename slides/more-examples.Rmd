@@ -1,0 +1,204 @@
+---
+title: "More Examples"
+draft: false
+source: true
+output: binb::metropolis
+fontsize: 12pt
+author: Max Turgeon
+institute: SCI 2000--Introduction to Data Science
+header-includes:
+  - \usefonttheme{professionalfonts}
+  - \usepackage{graphicx}
+  - \usepackage{tikzpagenodes}
+  - \usetikzlibrary{calc}
+  - \usepackage{caption}
+---
+
+```{r,setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(cache = FALSE, message = FALSE,
+                      linewidth = 50)
+```
+
+## Explore data {.allowframebreaks}
+
+  - We will use data on Forced Expiratory Volume (FEV) in children age 3 to 19 from East Boston recorded during the 1970s.
+    + Can be downloaded from https://hbiostat.org/data/, but I also added a copy on UM Learn.
+  - The dataset contains information on age, height, sex, and smoking status.
+  - **Outcome**: FEV
+  
+```{r, message = FALSE}
+library(tidyverse)
+# Import dataset into R
+data_fev <- read_csv("FEV.csv")
+glimpse(data_fev, width = 50) # So it fits the slide
+
+# Explore data
+ggplot(data_fev, aes(x = sex, y = fev)) +
+  geom_boxplot()
+ggplot(data_fev, aes(x = smoke, y = fev)) +
+  geom_boxplot()
+```
+
+```{r}
+# Smokers have higher FEV??
+fit <- lm(fev ~ smoke, data = data_fev)
+coef(fit)
+confint(fit)
+```
+
+  - Non-smokers have, on average, an FEV measure that is 0.7 lower than smokers... What can be going on?
+
+```{r, message = FALSE}
+# Look at FEV vs age and height
+ggplot(data_fev, aes(x = age, y = fev)) +
+  geom_point()
+ggplot(data_fev, aes(x = height, y = fev)) +
+  geom_point()
+```
+
+  - The association between FEV and smoking status is **spurious**: it looks like it is driven by the fact that:
+    - Older children are taller, have larger lungs, and therefore higher FEV.
+    - Older children are more likely to be smokers.
+  - We also say that age and height are **confounders** for the association between FEV and smoking status.
+    
+## Fit a linear model {.allowframebreaks}
+
+  - The idea is that we are comparing older and younger children together, thus creating this spurious association.
+    + What if we only compared children of the same age?
+  - Linear regression actually allows us to **adjust** for the effect of age and height on FEV.
+
+```{r}
+# Fit linear model
+model <- lm(fev ~ smoke + sex + age + height, 
+            data = data_fev)
+```
+
+\vspace{1cm}
+
+```{r}
+coef(model)
+```
+
+\vspace{2cm}
+
+```{r}
+confint(model)
+```
+
+  - Non-smokers have, on average, an FEV measure that is 0.08 *higher* than smokers, when adjusting for age, height and sex.
+    + And it's no longer significant (0 is in the confidence interval)
+  
+## Residual analysis {.allowframebreaks}
+  
+```{r}
+library(broom)
+# Plot outcome vs fitted values
+augment(model) %>% 
+  ggplot(aes(x = .fitted, y = fev)) +
+  geom_point() +
+  geom_abline(intercept = 0,
+              slope = 1)
+```
+
+```{r eval = FALSE}
+# Can also colour points according to smoking status
+augment(model) %>% 
+  ggplot(aes(x = .fitted, y = fev)) +
+  geom_point(aes(colour = smoke)) +
+  geom_abline(intercept = 0,
+              slope = 1)
+```
+
+```{r}
+# Plot residuals vs fitted values
+augment(model) %>% 
+  ggplot(aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0,
+             linetype = "dotted")
+```
+
+  - We found evidence that additivity/linearity is not met.
+    + Outcome vs fitted plot.
+    + Given our data visualizations, it is likely that relationship between FEV and height is nonlinear.
+  - We found evidence of unequal variance.
+    + Residual vs fitted values: higher variance with larger fitted values.
+  - How can we use residual analysis to decide how we could improve the model?
+
+## Fit a second linear model {.allowframebreaks}
+
+```{r}
+# We will add a quadratic term for height
+# The function I() protects height^2
+# Try removing it from the code below and 
+# see how it's different
+model2 <- lm(fev ~ smoke + sex + age + 
+               height + I(height^2), 
+            data = data_fev)
+```
+
+\vspace{1cm}
+
+```{r}
+coef(model2)
+```
+
+\vspace{2cm}
+
+```{r linewidth = 60}
+confint(model2)
+```
+
+  - Non-smokers have, on average, an FEV measure that is 0.13 *higher* than smokers, when adjusting for age, height and sex.
+    + And now it's back to being significant
+
+## Residual analysis redux {.allowframebreaks}
+  
+```{r}
+augment(model2) %>% 
+  ggplot(aes(x = .fitted, y = fev)) +
+  geom_point() +
+  geom_abline(intercept = 0,
+              slope = 1)
+```
+
+```{r}
+augment(model2) %>% 
+  ggplot(aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0,
+             linetype = "dotted")
+```
+
+<center>
+We still have evidence of unequal variance, but at least additivity/linearity now seem to hold!
+</center>
+
+```{r linewidth = 60}
+# Let's use robust standard errors
+library(lmtest)
+library(sandwich)
+coefci(model2, vcov. = vcovHC(model2))
+```
+
+## Summary 
+
+  - We still have the same interpretation for our regression coefficient:
+    + Non-smokers have, on average, an FEV measure that is 0.13 *higher* than smokers, when adjusting for age, height and sex.
+  - With the robust standard errors, the confidence interval is wider, and so the association between FEV and smoking status (accounting for age, height and sex) is no longer significant.
+  - Because we are now confident our assumptions hold, the right conclusion from our analysis is the one based on the last model.
+    + Quadratic term for height
+    + Robust standard errors
