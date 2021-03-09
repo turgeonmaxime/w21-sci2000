@@ -21,7 +21,7 @@ Some of these slides borrow heavily from other sources. In particular, I would l
     + [Filtering joins](filtering-joins.pdf)
     + [RDBMS](intro-rdbms.pdf)
   - Text data
-    + Regular expressions
-    + Sentiment analysis
+    + [Regular expressions](regex.pdf)
+    + [Sentiment analysis](sentiment-analysis.pdf)
   - Web scraping
   - APIs

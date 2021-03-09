@@ -1,0 +1,414 @@
+---
+title: "Sentiment Analysis"
+draft: true
+source: true
+output: binb::metropolis
+fontsize: 12pt
+author: Max Turgeon
+institute: SCI 2000--Introduction to Data Science
+header-includes:
+  - \usefonttheme{professionalfonts}
+  - \usepackage{graphicx}
+  - \usepackage{tikzpagenodes}
+  - \usetikzlibrary{calc}
+  - \usepackage{caption}
+---
+
+```{r,setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(cache = FALSE, message = FALSE,
+                      linewidth = 50)
+```
+
+## Lecture Objectives
+
+  - Explain the pros and cons of the bag-of-words model
+  - Compare texts using sentiment analysis and TF-IDF
+
+## Motivation
+
+  - Last lecture, we discussed regular expressions.
+  - They're a way to *manipulate* text data:
+    + Filter according to the presence of a pattern.
+    + Replace a certain pattern.
+    + Split a string into smaller components according to a pattern.
+  - Today we are looking at **sentiment analysis** which is a way to *analyze* text data.
+  
+## Bag-of-words model {.allowframebreaks}
+
+  - Let's assume we have a collection of strings.
+    + E.g. a series of tweets, chapters from a book, articles on Canadian politics.
+  - We need a way to represent these strings so we can make comparisons.
+    + E.g. is this article fake news? Is this email spam? Are these two tweet about the same topic?
+  - A very common representation is the **bag-of-words** model.
+  - Every string is represented as an (unordered) set of its words.
+    + No punctuation
+    + Ignoring grammar and word order
+  - For example, let's consider the following sentence:
+    + `The Queen saluted the work of front line workers across the Commonwealth.`
+  - It's bag-of-words representation is:
+    + `"The", "Queen", "saluted", "the", "work", "of", "front", "line", "workers", "across", "the", "Commonwealth"`
+  - In particular, we keep repetitions.
+
+## Example {.allowframebreaks}
+
+```{r}
+library(stringr)
+string <- "The Queen saluted the work of front
+line workers across the Commonwealth."
+
+bag_words <- str_split(string, 
+                       pattern = "\\s+")
+bag_words
+```
+
+```{r}
+# Remove the final period
+# Recall: bag_words is a list
+str_replace(bag_words[[1]],
+            pattern = "\\.$",
+            replacement = "")
+```
+
+```{r}
+# If we had more than one string
+# we could use map from the purrr package
+library(purrr)
+bag_words %>% 
+  map(~str_replace_all(.x, "\\.$", ""))
+```
+
+## Exercise
+
+<center>
+Turn the following tweet into its bag-of-words representation:
+```
+We’ve launched the #5030Challenge to make workplaces 
+across the country more diverse and inclusive - because 
+when that happens, we all benefit.
+```
+
+Can you also remove the hashtag? (Hint: look at the function `str_subset`.)
+</center>
+
+## Solution {.allowframebreaks}
+
+```{r}
+string <- "We’ve launched the #5030Challenge
+to make workplaces across the country
+more diverse and inclusive - because 
+when that happens, we all benefit."
+
+bag_words <- str_split(string, 
+                       pattern = "\\s+")
+bag_words
+```
+
+```{r}
+# Remove the final period and the comma
+str_replace(bag_words[[1]],
+            pattern = "(\\.|,)$",
+            replacement = "")
+```
+
+```{r}
+# Remove the final period and the comma
+# also remove hyphen and hashtag
+str_replace(bag_words[[1]],
+            pattern = "(\\.|,)$",
+            replacement = "") %>% 
+  str_subset(pattern = "-", negate = TRUE) %>% 
+  str_subset(pattern = "^#", negate = TRUE)
+```
+
+## Question
+
+<center>
+Can you find advantages and disadvantages of the bag-of-words model?
+</center>
+
+## Answer
+
+  - **Advantages**
+    + Simplifies comparison
+    + Easy to understand
+  - **Disadvantages**
+    + Ignores relationship between words
+    + May distort meaning (i.e. `like` and `not like`)
+
+## Tokenization and stop-words {.allowframebreaks}
+
+  - More generally, the process of splitting a string into smaller components is called **tokenization**.
+  - Therefore, the words are sometimes called **tokens**.
+  - Some tokens do not provide much information about a string or text because they don't carry much meaning, or they are too common.
+    + E.g. `the`, `and`, `or`, etc.
+  - These tokens are called **stop-words**, and they are often removed from bags-of-words.
+  - The dataset `stop_words` in the `tidytext` package contains a lexicon of stop-words.
+  
+```{r}
+library(tidytext)
+head(stop_words, n = 5)
+```
+
+  - If we store our bag-of-words into a `data.frame`, then we can use an anti-join to remove stop-words.
+
+## Example {.allowframebreaks}
+
+```{r}
+# Previous example
+bag_words <- str_replace(bag_words[[1]],
+            pattern = "(\\.|,)$",
+            replacement = "") %>% 
+  str_subset(pattern = "-", negate = TRUE) %>% 
+  str_subset(pattern = "^#", negate = TRUE)
+```
+
+```{r}
+library(tidyverse)
+dataset <- data.frame(word = bag_words)
+dataset %>% 
+  anti_join(stop_words, by = "word")
+```
+
+## Using `tidytext` {.allowframebreaks}
+
+```{r}
+# Store strings in a data.frame
+# and give them an id number
+dataset <- data.frame(id = c(1, 2),
+  string = c(
+  "The Queen saluted the work of front
+line workers across the Commonwealth.",
+  "We’ve launched the #5030Challenge
+to make workplaces across the country
+more diverse and inclusive - because 
+when that happens, we all benefit.")
+)
+```
+
+```{r}
+dataset %>% 
+  unnest_tokens(output = "word",
+                input = "string") %>% 
+  glimpse
+```
+
+```{r}
+data_clean <- dataset %>% 
+  unnest_tokens(output = "word",
+                input = "string") %>% 
+  anti_join(stop_words)
+glimpse(data_clean)
+```
+
+## Sentiment analysis
+
+  - **Sentiment analysis** is a popular way of analyzing and comparing bag-of-words. 
+  - The idea is to build a lexicon and attach a sentiment, or a sentiment value, to each word in the lexicon.
+  - We can then compute the most common sentiment, or average sentiment value, for a particular text.
+  - Fortunately, there are many lexica we can readily use!
+
+## Example {.allowframebreaks}
+
+```{r}
+# We will use the Bing lexicon
+head(get_sentiments("bing"), n = 5)
+```
+
+```{r}
+# Why are we using an inner join?
+data_clean %>% 
+  inner_join(get_sentiments("bing"),
+             by = "word") %>% 
+  count(id, sentiment)
+# There was only one word in both strings
+# that appeared in the Bing lexicon...
+```
+
+## Example {.allowframebreaks}
+
+```{r}
+# We will analyse a larger corpus
+# Anne of Green Gables
+# We can download it from the project Gutenberg
+# gutenberg_id = 45 is the book we want
+library(gutenbergr)
+full_text <- gutenberg_download(45)
+glimpse(full_text)
+```
+
+```{r}
+# ID each line, tokenize, and clean
+data_clean <- full_text %>%
+  mutate(line = row_number()) %>%
+  unnest_tokens(word, text) %>% 
+  anti_join(stop_words, by = "word")
+```
+
+```{r}
+# Visualize most common words
+data_clean %>%
+    count(word, sort = TRUE) %>%
+    top_n(n = 20) %>%
+    ggplot(aes(n, reorder(word, n))) +
+    geom_col()
+```
+
+```{r}
+# Sentiment analysis----
+data_sentiment <- data_clean %>%
+  inner_join(get_sentiments("bing"),
+             by = "word") %>%            
+  count(sentiment, word, sort = TRUE)
+# We lost a lot of words...
+c(nrow(data_clean), nrow(data_sentiment))
+```
+
+```{r}
+# Let's look at a few rows
+head(data_sentiment)
+```
+
+```{r}
+data_sentiment %>%
+  group_by(sentiment) %>%
+  top_n(n = 10) %>%
+  ggplot(aes(n, reorder(word, n),
+             fill = sentiment)) +
+  geom_col() +
+  facet_wrap(~ sentiment, scales = "free")
+```
+
+## Exercise
+
+<center>
+Repeat the analysis for *The Wonderful Wizard of Oz* (`gutenberg_id = 55`). What are the most common positive and negative words?
+</center>
+
+## Solution {.allowframebreaks}
+
+```{r}
+# Download full text,
+# ID each line, tokenize, and clean
+data_clean <- gutenberg_download(55) %>%
+  mutate(line = row_number()) %>%
+  unnest_tokens(word, text) %>% 
+  anti_join(stop_words, by = "word")
+```
+
+```{r}
+# Sentiment analysis----
+data_sentiment <- data_clean %>%
+  inner_join(get_sentiments("bing"),
+             by = "word") %>%            
+  count(sentiment, word, sort = TRUE)
+```
+
+```{r}
+data_sentiment %>%
+  group_by(sentiment) %>%
+  top_n(n = 10) %>%
+  ggplot(aes(n, reorder(word, n),
+             fill = sentiment)) +
+  geom_col() +
+  facet_wrap(~ sentiment, scales = "free")
+```
+
+## TF-IDF
+
+  - Sentiment analysis is not the only way to turn words into numbers/values.
+  - TF-IDF is another approach:
+    + **Term Frequency**: How many times a word appears in a document
+    + **Inverse Document Frequency**: Negative log of fraction of documents containing a certain word.
+  - Taking the product of these two quantities, TF-IDF allows us to measure the important of a particular word within a collection of documents.
+  - In particular, we don't need to remove stop-words; they'll have `IDF = 0`
+
+## Example {.allowframebreaks}
+
+```{r}
+dataset <- data.frame(id = c(1, 2),
+  string = c(
+  "The Queen saluted the work of front
+line workers across the Commonwealth.",
+  "We’ve launched the #5030Challenge
+to make workplaces across the country
+more diverse and inclusive - because 
+when that happens, we all benefit.")
+) %>% 
+  unnest_tokens(output = "word",
+                input = "string")
+```
+
+```{r}
+dataset %>% 
+  group_by(word, id) %>% 
+  summarise(tf = n())
+```
+
+```{r}
+dataset %>% 
+  group_by(word, id) %>% 
+  summarise(tf = n()) %>% # n() counts words
+  mutate(idf = -log(n()/2), # n() counts documents
+         tf_idf = tf*idf)
+```
+
+## Example {.allowframebreaks}
+
+```{r cache = TRUE}
+anne_novels <- gutenberg_download(c(45, 47, 51),
+                                  meta_fields = "title")
+anne_novels
+```
+
+```{r}
+data_tfidf <- anne_novels %>% 
+  unnest_tokens(word, text) %>% 
+  count(title, word) %>% 
+  bind_tf_idf(word, title, n)
+```
+
+
+```{r}
+glimpse(data_tfidf)
+```
+
+```{r}
+# Visualize top 10
+data_tfidf %>%
+    group_by(title) %>%
+    top_n(n = 10, wt = tf_idf) %>%
+    ggplot(aes(tf_idf,
+               reorder(word, tf_idf),
+               fill = title)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~title, scales = "free")
+```
+
+## Summary {.allowframebreaks}
+
+  - We defined at the bag-of-words model for text data.
+  - We looked at two different analytic approaches:
+    + Sentiment analysis
+    + TF-IDF
+  - TF-IDF can be used to build document-term matrices.
+    + These matrices are inputs for **topic modeling** and **semantic analysis**.
+  - Another common data manipulation is **lemmatization**: turn inflected words into a common representative.
+    + E.g. `liked`, `likes`, and `likeable` would be represented by `like`.
+  - Instead of bag-of-words, we can use **N-grams**: tokens are pairs/triples/tuples of consecutive words.
+  - Finally, a new branch of text analysis uses **neural networks** to construct predictive models for text.
+    + E.g. Predictive text on your phone
+  - As you can see, there is a lot to explore, and I hope this lecture was enough to capture your interest!
+  
