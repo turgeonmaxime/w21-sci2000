@@ -338,6 +338,7 @@ data_sentiment %>%
 ## Example {.allowframebreaks}
 
 ```{r}
+library(tidytext)
 dataset <- data.frame(id = c(1, 2),
   string = c(
   "The Queen saluted the work of front
@@ -346,26 +347,54 @@ line workers across the Commonwealth.",
 to make workplaces across the country
 more diverse and inclusive - because 
 when that happens, we all benefit.")
-) %>% 
-  unnest_tokens(output = "word",
-                input = "string")
+)
 ```
 
-```{r}
+```{r eval = FALSE, echo = FALSE}
 dataset %>% 
   group_by(word, id) %>% 
   summarise(tf = n())
 ```
 
 ```{r}
-dataset %>% 
-  group_by(word, id) %>% 
-  summarise(tf = n()) %>% # n() counts words
-  mutate(idf = -log(n()/2), # n() counts documents
-         tf_idf = tf*idf)
+data_tfidf <- dataset %>% 
+  unnest_tokens(output = "word",
+                input = "string") %>% 
+  count(id, word) %>% 
+  bind_tf_idf(term = word, 
+              document = id, 
+              n = n)
 ```
 
-## Example {.allowframebreaks}
+
+```{r echo = -1}
+options(digits = 2)
+head(data_tfidf, n = 5)
+```
+
+```{r warning = FALSE}
+data_tfidf %>%
+    ggplot(aes(tf_idf,
+               reorder(word, tf_idf),
+               fill = id)) +
+    geom_col(show.legend = FALSE) +
+    facet_wrap(~id, scales = "free")
+```
+
+## Exercise
+
+<center>
+Repeat the analysis with the first three novels from the Anne of Green Gables series. What are the top words for each novel, according to TF-IDF? You can start with the code below.
+</center>
+
+```{r eval = FALSE}
+library(tidytext)
+library(gutenbergr)
+anne_novels <- gutenberg_download(c(45, 47, 51),
+                                  meta_fields ="title")
+```
+
+## Solution {.allowframebreaks}
 
 ```{r cache = TRUE}
 anne_novels <- gutenberg_download(c(45, 47, 51),
@@ -381,7 +410,7 @@ data_tfidf <- anne_novels %>%
 ```
 
 
-```{r}
+```{r eval = FALSE, echo = FALSE}
 glimpse(data_tfidf)
 ```
 

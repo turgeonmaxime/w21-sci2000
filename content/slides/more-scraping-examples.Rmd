@@ -1,0 +1,306 @@
+---
+title: "More Scraping Examples"
+draft: true
+source: true
+output: binb::metropolis
+fontsize: 12pt
+author: Max Turgeon
+institute: SCI 2000--Introduction to Data Science
+header-includes:
+  - \usefonttheme{professionalfonts}
+  - \usepackage{graphicx}
+  - \usepackage{tikzpagenodes}
+  - \usetikzlibrary{calc}
+  - \usepackage{caption}
+---
+
+```{r,setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(cache = FALSE, message = FALSE,
+                      linewidth = 50)
+```
+
+## Example {.allowframebreaks}
+
+```{r}
+library(rvest)
+library(tidyverse)
+
+url <- "https://en.wikipedia.org/wiki/World_population"
+world_pop_tables <- read_html(url) %>% 
+  html_nodes("table.wikitable") 
+
+length(world_pop_tables)
+```
+
+
+```{r}
+# Looking at each of them one at a time
+# E.g. world_pop_tables[[1]], world_pop_tables[[2]]
+# We recognize it's the 3rd table
+library(knitr)
+
+world_pop_tables[[3]] %>% 
+  html_table() %>% 
+  select(Rank, Country, Population) %>% 
+  kable()
+```
+
+```{r}
+# Alternatively, if you don't like double brackets
+library(purrr)
+
+world_pop_tables %>% 
+  pluck(3) %>% 
+  html_table() %>% 
+  select(Rank, Country, Population) %>% 
+  kable()
+```
+
+
+
+## CSS Selectors and attributes
+
+| Syntax | Explanation |
+|--------|-------------|
+| `div[target]`	| Selects `div` elements with a `target` attribute |
+| `div[target=foo]`	| Selects `div` elements with `target="foo"` |
+| `a[href^="https"]` | Selects `a` elements whose `href` attribute begins with `"https"` |
+| `a[href$=".pdf"]`	| Selects `a` elements whose `href` attribute ends with `".pdf"` |
+| `a[href*="flower"]` | Selects every `a` elements whose href attribute contains `"flower"` |
+
+## Exercise
+
+<center>
+On IMDb.com, search for any movie of your choice. Use web scraping to extract the average rating. What CSS selector did you use?
+</center>
+
+## Solution
+
+```{r}
+library(rvest)
+# url for "I Care A Lot" (2020)
+url <- "https://www.imdb.com/title/tt9893250/"
+
+read_html(url) %>% 
+    html_elements("span[itemprop=ratingValue]") %>% 
+    html_text()
+```
+
+## Example---PubMed {.allowframebreaks}
+
+  - We search PubMed for articles on the adverse effects of hemodialysis at home.
+    + The query is `"Hemodialysis, Home/Adverse Effects"[Mesh]`.
+  - This leads to the following URL: https://pubmed.ncbi.nlm.nih.gov/?term=%22Hemodialysis%2C+Home%2FAdverse+Effects%22%5BMesh%5D
+  - On this page, the article links are all the form https://pubmed.ncbi.nlm.nih.gov/30041224/
+    + But they are written using a relative path!
+  
+```{r}
+url <- paste0("https://pubmed.ncbi.nlm.nih.gov/",
+              "?term=%22Hemodialysis%2C+Home%2F",
+              "Adverse+Effects%22%5BMesh%5D")
+
+results <- read_html(url) %>% 
+  html_nodes("a") %>% 
+  html_attr("href") # Extract the attribute
+
+length(results)
+```
+
+```{r}
+library(stringr)
+# This is empty...
+str_subset(results, 
+           "https://pubmed.ncbi.nlm.nih.gov/\\d+/")
+# But this gives us what we want!
+urls <- str_subset(results, "/\\d+/")
+urls
+```
+
+  - If we click on one of these links, we can see an abstract.
+  - This abstract is inside a `div` of class `abstract-content`.
+  - If we loop through the URLs, read in the HTML file, and extract the abstract, we can do a downstream analysis with them (e.g. sentiment analysis).
+
+```{r}
+# Add domain to relative URLs
+full_urls <- paste0("https://pubmed.ncbi.nlm.nih.gov",
+                    urls)
+full_urls
+```
+
+```{r}
+# Let's see how it could work
+# with the first url
+read_html(full_urls[1]) %>% 
+  html_nodes("div.abstract-content") %>% 
+  html_text()
+```
+
+```{r}
+# Let's create a function!
+# Input: url
+extract_abstract <- function(url) {
+  read_html(url) %>% 
+    html_nodes("div.abstract-content") %>% 
+    html_text() %>% 
+    str_replace_all("^\\s+|\\s+$", "")
+}
+```
+
+
+```{r}
+extract_abstract(full_urls[1])
+```
+
+
+```{r}
+# Different ways to loop
+# We will use map from package purrr
+library(purrr)
+
+abstracts <- map(full_urls,
+                 extract_abstract)
+
+str(abstracts)
+```
+
+## Further examples of CSS selectors
+
+  - `p a` — finds all `a` tags inside of a `p` tag.
+  - `body p a` — finds all `a` tags inside of a `p` tag inside of a `body` tag.
+  - `p.outer-text` — finds all `p` tags with a *class* of `outer-text`.
+  - `p#first` — finds all `p` tags with an *id* of `first`.
+  - `body p.outer-text` — finds any `p` tags with a class of `outer-text` inside of a `body` tag.
+  
+## Example---Weather forecast {.allowframebreaks}
+
+  - We can find weather forecasts for Winnipeg at this URL: https://weather.gc.ca/city/pages/mb-36_metric_e.html
+  - The forecast is split into 2 parts:
+    + Day: `div.row strong`
+    + Temperature: `div.row span.wxo-metric-hide`
+  - We will extract each part separately and combine in a `data.frame`.
+
+```{r}
+library(rvest)
+
+url <- "https://weather.gc.ca/city/pages/mb-36_metric_e.html"
+forecast <- read_html(url)
+
+days <- forecast %>% 
+  html_elements("div.row strong") %>% 
+  html_text()
+days
+```
+
+```{r}
+# Not quite... 
+# Let's use regex to remove "Night:"
+library(stringr)
+days <- forecast %>% 
+  html_elements("div.row strong") %>% 
+  html_text() %>%
+  str_subset("Night:", negate = TRUE)
+days
+```
+
+```{r}
+temps <- forecast %>% 
+    html_elements("div.row span.wxo-metric-hide") %>% 
+    html_text()
+temps
+```
+
+```{r}
+# We also picked up precipitations!
+# And other stuff...
+# Better: we want span with title attribute
+temps <- forecast %>% 
+    html_elements("div.row span.wxo-metric-hide[title]") %>% 
+    html_text()
+temps
+```
+
+```{r}
+# Put into nice table with caption
+library(knitr)
+data.frame(
+  Day = days,
+  Forecast = temps
+) %>% 
+  kable(caption = "Weather Forecast for Winnipeg")
+```
+
+## Exercise
+
+<center>
+IMDd can provide a list of the top 50 movies by user ratings. Here's where you can find it: https://www.imdb.com/search/title/?groups=top_250&sort=user_rating
+
+Using web scraping, extract the title of these movies. 
+
+**Bonus**: Try to also extract the year the movie came out.
+</center>
+
+## Solution {.allowframebreaks}
+
+  - Movie titles appear inside `a` elements, which are themselves inside `h3` elements of class `lister-item-header`.
+  - Movie years appear inside `span` elements of class `lister-item-year`, which are themselves inside `h3` elements of class `lister-item-header`.
+  
+```{r}
+library(rvest)
+url <- paste0("https://www.imdb.com/search/title/",
+              "?groups=top_250&sort=user_rating")
+
+imdb_page <- read_html(url)
+
+top50_titles <- imdb_page %>% 
+  html_elements("h3.lister-item-header a") %>% 
+  html_text()
+head(top50_titles)
+```
+
+```{r}
+csssel <- "h3.lister-item-header span.lister-item-year"
+top50_years <- imdb_page %>% 
+  html_elements(csssel) %>% 
+  html_text()
+head(top50_years)
+```
+
+```{r}
+library(tidyverse)
+
+# Combine into tibble
+tibble(Movie = top50_titles,
+       Year = top50_years) %>% 
+  mutate(Year = str_replace_all(Year,
+                                "\\(|\\)",
+                                ""),
+         Year = as.numeric(Year))
+```
+
+
+## Ethics of web scraping {.allowframebreaks}
+
+  - So far, we've only run quick toy examples.
+  - But keep in mind: you're making requests to a web server every time you tun `GET()` or `read_html()`.
+  - Websites may deny you access if they think you are excessive.
+  - Some websites list sections of the website you shouldn't scrape in a file called `robots.txt`.
+    + E.g. Look up https://weather.gc.ca/robots.txt
+  - If you are parsing the same HTML file many times, it's better to save the output of `read_html()` first, and then parse the output multiple times.
+    + See previous example.
+  - When making multiple requests to the same server (cf. PubMed example), consider adding a delay between requests.
+    + E.g. using `Sys.sleep(time = 1)` inside your function.
+  - Have a look at the `polite` package, which helps implement some of these strategies.
+  
