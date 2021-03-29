@@ -1,6 +1,6 @@
 ---
 title: "Regular expressions"
-draft: true
+draft: false
 source: true
 output: binb::metropolis
 fontsize: 12pt
@@ -40,16 +40,60 @@ knitr::opts_chunk$set(cache = FALSE, message = FALSE,
 
 ## Motivation
 
+  - As we have seen, data is often encoded using text.
+    + `M/F` or `minivan/suv/pickup`
+  - When we are lucky, this data is free of errors and coded exactly the way we need it for data analysis.
+  - More often than not, there are typos or inconsistencies in the data that need to be addressed.
+
 ## Regular expression--Definition
 
-## Applications of regexes
+  - A **regular expression** (or **regex**) is a sequence of characters that specify a search pattern.
+  - In other words, a regex is a pattern that we want to find in a string of text.
+  - Common applications of regexes include:
+    + finding observations where a certain word appears
+    + replacing a string by another one
+    + splitting a string according to a certain pattern
 
-## Example {.allowframebreaks}
+## Examples {.allowframebreaks}
 
 ```{r}
 library(stringr)
+# Detect a pattern
+str_detect(c("apple", "orange", "pineapple"),
+           pattern = "apple")
+# Careful: This is case-sensitive
+str_detect(c("Apple", "Orange", "Pineapple"),
+           pattern = "apple")
+# To ignore case
+str_detect(c("Apple", "Orange", "Pineapple"),
+           pattern = regex("apple", 
+                           ignore_case = TRUE))
 ```
 
+```{r}
+# Match one of the patterns
+str_detect(c("color", "colour", "coulour"),
+           pattern = "color|colour")
+# Or more compact
+str_detect(c("color", "colour", "coulour"),
+           pattern = "col(o|ou)r")
+```
+
+```{r}
+# Replace patterns
+str_replace_all(c("Male", "male", "MaLe"),
+                pattern = regex("male", 
+                                ignore_case = TRUE),
+                replacement = "male")
+```
+
+\vspace{1cm}
+
+```{r}
+# Split a string using a pattern
+str_split(c("it is a sentence", "it is another one"),
+          pattern = " ")
+```
 
 ## Anchors
 
@@ -81,6 +125,14 @@ str_detect(c("$15.99", "$3.75", "1.99$"),
            pattern = "\\$$")
 ```
 
+\vspace{2cm}
+
+```{r}
+# Or more compact
+str_detect(c("$15.99", "$3.75", "1.99$"), 
+           pattern = "^\\$|\\$$")
+```
+
 ## Quantifiers
 
   - **Quantifiers** are ways to specify how many times a certain pattern should appear.
@@ -90,9 +142,20 @@ str_detect(c("$15.99", "$3.75", "1.99$"),
     + `?` will match the item on its left at most once.
     + `*` will match the item on its left zero or more times.
     + `+` will match the item on its left once or more times.
-  - Key distinction between `*` and `+`: the latter requires at least one match.
+  - Key distinction between `*` and `+`
+    + the latter requires at least one match.
   
 ## Example {.allowframebreaks}
+
+```{r}
+# Revisiting an earlier example
+str_detect(c("color", "colour", "coulour"),
+           pattern = "colou?r")
+
+# Matching strings that end with a bunch of periods
+str_detect(c("str", "str.", "str..", "str..."),
+           pattern = "\\.+$")
+```
 
 ## Quantifiers cont'd
 
@@ -119,10 +182,13 @@ str_detect("string....", pattern = "\\.{3}$")
 ## Character classes {.allowframebreaks}
 
   - When discussing quantifiers, I used "item on the left" instead of "character on the left".
-  - This was intentional: you can create **character classes** using square brackets.
+  - This was intentional: these items could also be **character classes**.
+  - We can create them using square brackets.
     + E.g. `p[ao]rt` will match both `part` and `port`.
   - Character classes can also be created using *sequences*.
-    + E.g. `[a-z]` will match all lower case letters; `[a-zA-Z]` will match all lower and upper case letters; `[0-9]` will match all ten digits.
+    + `[a-z]` will match all lower case letters
+    + `[a-zA-Z]` will match all lower and upper case letters
+    + `[0-9]` will match all ten digits
     
 \vspace{1cm}
 
@@ -164,5 +230,98 @@ str_replace_all(" Is this enough?   ",
                 replacement = "")
 ```
 
-
 ## Summary
+
+  - Regular expressions are patterns that we want to search within a string.
+  - Anchors and quantifiers are metacharacters that allow us to be quite specific about the type of matches we want.
+    + Remember: to match on a metacharacter literally, you need to escape it!
+  - Most modern implementations of regular expressions also have **lookaround operators**, which we won't cover. But look it up if you're interested!
+  
+## Example {.allowframebreaks}
+
+```{r}
+library(tidyverse)
+library(dslabs)
+glimpse(movielens)
+```
+
+```{r}
+# How many horror movie reviews
+movielens %>% 
+  filter(str_detect(genres, "Horror")) %>% 
+  nrow()
+```
+
+----
+
+```{r}
+# What proportion are about thrillers?
+movielens %>% 
+  mutate(thriller = str_detect(genres,
+                               "Thriller")) %>% 
+  summarise(prop = mean(thriller))
+```
+
+----
+
+```{r}
+# What genre is Forrest Gump?
+movielens %>% 
+  filter(str_detect(title, "Gump")) %>% 
+  pull(genres) %>% 
+  unique %>%
+  str_split(pattern = "\\|")
+```
+
+## Exercise
+
+<center>
+The dataset `reported_heights` in the `dslabs` package contains self-reported heights in no specific format. Clean up the data by making all heights comparable.
+
+This is a challenging exercise. Try to do as much as you can.
+</center>
+
+## (Partial) solution {.allowframebreaks}
+
+  - The first thing to do is to decide which units we will use.
+  - Looking at the data, it seems that most people reported their height in inches.
+    + Therefore, let's use inches as our unit of measurement.
+  - Next, we need to look at the data and find heights that don't seem to be in inches.
+  - For example, some heights are a single digit, which is probably the height in feet.
+    + To find these heights, we can use `^\\d$` as our regex.
+    + Once found, we need to convert to an integer and multiply by 12.
+    
+```{r}
+library(tidyverse)
+library(dslabs)
+library(stringr)
+
+reported_heights %>% 
+  filter(str_detect(height, "^\\d$")) %>% 
+  count(height)
+```
+
+  - We can see some errors already.
+    + A height of 0 or 1 is probably a mistake.
+    + A height of 2 is either a mistake or 2 meters. We will assume the latter.
+    
+```{r}
+data_clean1 <- reported_heights %>% 
+  filter(!height %in% c(0, 1)) %>% # Remove mistakes
+  filter(str_detect(height, "^\\d$")) %>% 
+  mutate(height_in = if_else(height == "2",
+                             78.75,
+                             12 * as.numeric(height)))
+nrow(data_clean1)
+```
+
+  - We can look for other patterns by looking at heights that are not written as one or two digits.
+    + The regex we want to use is `^\\d{1,2}$`
+    
+```{r}
+reported_heights %>% 
+    filter(!str_detect(height, "^\\d{1,2}$")) %>%
+  head()
+```
+
+  - For a complete-ish solution, see UM Learn.
