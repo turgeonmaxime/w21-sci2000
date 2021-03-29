@@ -23,5 +23,7 @@ Some of these slides borrow heavily from other sources. In particular, I would l
   - Text data
     + [Regular expressions](regex.pdf)
     + [Sentiment analysis](sentiment-analysis.pdf)
-  - Web scraping
-  - APIs
+  - [Web scraping](web-scraping.pdf)
+    + [More scraping examples](more-scraping-examples.pdf)
+    + [Scraping with XPath](scraping-xpath.pdf)
+    + [APIs](apis.pdf)
