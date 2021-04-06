@@ -1,0 +1,344 @@
+---
+title: "Logistic Regression"
+draft: false
+source: true
+output: binb::metropolis
+fontsize: 12pt
+author: Max Turgeon
+institute: SCI 2000--Introduction to Data Science
+header-includes:
+  - \usefonttheme{professionalfonts}
+  - \usepackage{graphicx}
+  - \usepackage{tikzpagenodes}
+  - \usetikzlibrary{calc}
+  - \usepackage{caption}
+---
+
+```{r,setup, include=FALSE}
+library(knitr)
+hook_output = knit_hooks$get('output')
+knit_hooks$set(output = function(x, options) {
+  # this hook is used only when the linewidth option is not NULL
+  if (!is.null(n <- options$linewidth)) {
+    x = knitr:::split_lines(x)
+    # any lines wider than n should be wrapped
+    if (any(nchar(x) > n)) x = strwrap(x, width = n)
+    x = paste(x, collapse = '\n')
+  }
+  hook_output(x, options)
+})
+
+knitr::opts_chunk$set(cache = FALSE, message = FALSE,
+                      linewidth = 50)
+```
+
+## Lecture Objectives
+
+  - Fit logistic regression models using `R`.
+  - Understand the output and interpret the coefficients.
+  - Evaluate the goodness of fit.
+
+## Motivation {.allowframebreaks}
+
+  - Earlier in the semester, we discussed linear regression.
+    + Measure differences in **averages** between different subgroups.
+    + For continuous outcome variables.
+  - **Logistic regression** is a way to model the relationship between a binary outcome variable and a set of covariates.
+    + It's also used as a basis for prediction modeling in machine learning.
+
+\begin{center}
+\includegraphics[height=0.9\textheight]{tweet_ml.png}
+\end{center}
+
+## Main definitions
+
+  - $Y$ is a binary outcome variable (i.e. $Y=0$ or $Y=1$).
+  $$\mathrm{logit}\left(E(Y \mid X_1, \ldots, X_p)\right) = \beta_0 + \beta_1 X_1 + \cdots + \beta_p X_p.$$
+  - Note: $\mathrm{logit}(t) = \log(t/(1-t))$.
+  - The coefficients $\beta_i$ represent comparisons of **log odds** for different values of the covariates (i.e. for different subgroups).
+  
+## Comments {.allowframebreaks}
+
+  - If $Y$ is a binary random variable, then $E(Y) = P(Y = 1)$.
+  - The **odds** is the ratio $P(Y = 1)/P(Y = 0)$.
+    + E.g. if the odds is 2, then $Y=1$ is twice as likely than $Y=0$.
+    + In other words, $P(Y = 1) = 0.66$.
+  - The **logit function** takes probabilities (which are between 0 and 1) and transforms them to a real number (from $-\infty$ to $\infty$)
+  
+```{r echo = FALSE}
+library(tidyverse)
+
+tibble(p = ppoints(1000)) %>% 
+  mutate(logit = log(p/(1-p))) %>% 
+  ggplot(aes(x = p, y = logit)) +
+  geom_line() +
+  theme_minimal() +
+  xlab("Probability") +
+  ylab("Log odds")
+```
+
+## Example {.allowframebreaks}
+
+  - Assume we have one covariate $X$: height in inches.
+  - The covariate $Y$: whether someone is a good basketball player (or not).
+  - Let's look at the effect of $\beta$ on the relationship between $X$ and $P(Y = 1 \mid X)$.
+  
+```{r echo = FALSE}
+library(tidyverse)
+library(purrr)
+
+expit <- function(t) exp(t)/(1 + exp(t))
+xvar <- seq(65, 85)
+
+c(-0.5, 0, 0.5, 1) %>% 
+    map_df(function(beta) {
+        tibble(height = xvar) %>% 
+            mutate(beta = beta,
+                   prob = expit(beta*(xvar - 75)))
+    }) %>% 
+    ggplot(aes(x = height, y = prob)) +
+    geom_line() +
+    facet_wrap(~beta, labeller = label_both) +
+    xlab("Height (in)") + ylab("P(Y = 1 | X)") +
+    theme_minimal()
+```
+
+## Example {.allowframebreaks}
+
+  - Consider the following 2x2 table:
+  
+```
+      Right-handed   Left-handed    Total
+Male            43             9       52 
+Female          44             4       48 
+Total           87            13      100
+```
+
+  - Let $Y$ be handedness, and let $X$ be sex.
+  - **Note**: The odds for female is $(44/48)/(4/48) = 11$; the odds for male is $(43/52)/(9/52) = 4.78$.
+  
+```{r}
+library(tidyverse)
+# Create dataset
+dataset <- bind_rows(
+  data.frame(Y = rep("right", 43),
+             X = rep("male", 43)),
+  data.frame(Y = rep("right", 44),
+             X = rep("female", 44)),
+  data.frame(Y = rep("left", 9),
+             X = rep("male", 9)),
+  data.frame(Y = rep("left", 4),
+             X = rep("female", 4)))
+```
+
+```{r}
+glimpse(dataset)
+```
+
+```{r}
+# Outcome must be 0 or 1
+dataset <- mutate(dataset, Y = as.numeric(Y=="right"))
+
+glm(Y ~ X, data = dataset,
+    family = "binomial")
+```
+
+```{r}
+# Relationship with odds?
+log(11)
+log(4.78/11)
+```
+
+## Interpreting coeffficients {.allowframebreaks}
+
+  - The regression coefficients in logistic regression measure differences in **log odds**.
+    + Or put another way: they measure ratios of odds on the log scale.
+    + Very common to take the exponential of coefficients (and confidence intervals).
+  - Let's start with the example of a single binary covariate $X$.
+
+\vspace{1in}
+
+  - If $X = 0$, we have
+  
+\begin{align*}
+\log\frac{P(Y = 1 \mid X = 0)}{P(Y = 0 \mid X = 0)} = \beta_0.
+\end{align*}
+
+  - In other words, the intercept term $\beta_0$ corresponds to the log-odds when all covariates are equal to zero.
+
+\vspace{1in}
+
+  - Now, let's look at $X = 1$
+  
+\begin{align*}
+\log\frac{P(Y = 1 \mid X = 1)}{P(Y = 0 \mid X = 1)} = \beta_0 + \beta_1.
+\end{align*}
+
+  - Therefore, $\beta_1$ is the difference in log-odds between $X = 1$ and $X = 0$.
+  - Using logarithm rules, the difference in log-odds is the same as the log of the odds ratio.
+
+## Exercise
+
+<center>
+
+The dataset `case2001` from the `Sleuth3` package contains information about members of the Donner party who got trapped by snow on their way to California.
+
+Using logistic regression, investigate the relationship between age and survival. Carefully interpret the regression coefficient estimates. Is the association statistically significant?
+
+</center>
+
+## Solution {.allowframebreaks}
+
+```{r}
+library(Sleuth3)
+library(tidyverse)
+
+# First transform outcome to 0/1
+dataset <- mutate(case2001,
+                  Y = as.numeric(Status == "Died"))
+
+fit <- glm(Y ~ Age, data = dataset,
+           family = "binomial")
+```
+
+\vspace{1in}
+
+```{r}
+coef(fit)
+```
+
+  - We can't interpret the intercept, as it would correspond to age 0.
+  - The coefficient for age is 0.07, which means for two groups whose age differ by 1 year, the log odds differ by 0.07.
+  - Alternatively, the odds ratio is $\exp(0.07) = 1.07$.
+    + Sometimes you'll see "odds increased by 7%".
+
+```{r}
+confint(fit)
+exp(confint(fit))
+```
+
+## Assumptions
+
+Logistic regression has less assumptions than linear regression.
+
+  1. Validity (with respect to the research question).
+  2. Representativeness (of the data with respect to the population).
+  3. Additivity and linearity.
+  4. (Conditional) Independence of the outcomes.
+  
+**Note**: There is only one possible distribution for binary outcomes, i.e. Bernoulli. As a consequence, we **always** have heteroscedasticity.
+
+## Diagnostic plots {.allowframebreaks}
+
+  - Diagnostic plots are trickier with logistic regression because the data is *discrete*.
+    + And therefore the *residuals* are also discrete.
+  - One useful solution: *bin the outcomes/residuals*.
+    + Bin observations with similar fitted values.
+    + Take the average of residuals and fitted values.
+    + Plot the averages against one another.
+  - As residual plots in linear regression, we are looking for random pattern around horizontal line.
+  - **Note**: There is a balance between enough bins to see patterns and enough observations by bins to have stable averages.
+  
+  
+## Example {.allowframebreaks}
+
+  - We will use data on Duchenne Muscular Dystrophy (DMD).
+    + Can be downloaded from https://biostat.app.vumc.org/wiki/Main/DataSets
+  - Goal of the study was to develop a screening program for female relatives of boys with DMD.
+  - **Outcome**: Carrier status
+  - **Covariates**: serum markers; creatine kinase (`ck`), hemopexin (`h`), pyruvate kinase (`pk`) and lactate dehydroginase (`ld`).
+  
+```{r}
+library(tidyverse)
+# Import dataset into R
+data_dmd <- read_csv("dmd.csv")
+# Remove rows with missing values
+data_dmd <- na.omit(data_dmd)
+```
+
+
+```{r echo = FALSE, eval = FALSE}
+# Explore data
+par(mfrow = c(2, 2))
+boxplot(ck ~ carrier, data = data_dmd)
+boxplot(h ~ carrier, data = data_dmd)
+boxplot(pk ~ carrier, data = data_dmd)
+boxplot(ld ~ carrier, data = data_dmd)
+```
+
+
+```{r, warning = FALSE}
+model <- glm(carrier ~ ck + h, data = data_dmd,
+             family = "binomial")
+confint(model)
+```
+
+```{r}
+library(broom)
+# Plot residuals and probabilities (no binning)
+augment(model, type.predict = "response") %>%
+  ggplot(aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0,
+             linetype = "dashed")
+```
+
+```{r, linewidth = 50}
+# We will use the performance package
+library(performance)
+
+# By default: residuals vs fitted probs
+#             sqrt(n) bins (~14 bins)
+binned_residuals(model)
+```
+
+```{r, linewidth = 50}
+# Use 'term' to plot against covariate
+binned_residuals(model, term = "ck")
+binned_residuals(model, term = "h")
+```
+
+  - We have evidence of poor model fit (from binned residuals vs fitted probabilities).
+    + But the evidence is weak.
+  - It may be driven by non-linearity of the effect of `h` on the log-odds.
+    + Or it could be driven by a missing covariate.
+
+## Other considerations {.allowframebreaks}
+
+  - **Calibration**: Are the estimated probabilities close to empirical probabilities?
+    + Hosmer-Lemeshow, Brier score
+  - **Discrimination**: Are cases more likely to be given large scores (or large probabilities) than non-cases?
+    + Area under the ROC curve (AUC), Percentage of Correct Predictions (PCP)
+    + **Note**: the AUC is not a very sensitive measure of model performance.
+
+\vspace{1cm}
+
+```{r}
+performance_hosmer(model)
+```
+
+
+\vspace{1in}
+
+```{r, linewidth=50}
+performance_score(model) # Quadratic = Brier
+performance_roc(model)
+```
+
+---
+
+```{r, linewidth=50}
+performance_pcp(model)
+```
+
+## Summary
+
+  - Logistic regression is an extension of linear regression for binary outcomes.
+    + Easily extended to any binomial outcome.
+  - Instead of measuring differences in means, regression coefficients measure differences in log-odds.
+    + But $\beta = 0$ still corresponds to no association!
+  - Residual analysis is more complicated.
+    + **Key**: Binned residuals.
+  - As a prediction model, logistic regression is surprisingly powerful.
+    + Neural networks can be seen as a generalization.
+  

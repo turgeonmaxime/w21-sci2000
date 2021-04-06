@@ -5,7 +5,7 @@ type: docs
 
 # Slides
 
-The remaining slides will be posted here once the course is over. If you are registered for the course, you can find the material on [UM Learn](https://universityofmanitoba.desire2learn.com/d2l/login).
+If you are registered for the course, you can find the material on [UM Learn](https://universityofmanitoba.desire2learn.com/d2l/login).
 
 Some of these slides borrow heavily from other sources. In particular, I would like to acknowledge [R for Data Science](https://r4ds.had.co.nz/) and Rafael Irizarry's notes on [data visualization](https://rafalab.github.io/dsbook/data-visualization-principles.html).
 
@@ -27,3 +27,6 @@ Some of these slides borrow heavily from other sources. In particular, I would l
     + [More scraping examples](more-scraping-examples.pdf)
     + [Scraping with XPath](scraping-xpath.pdf)
     + [APIs](apis.pdf)
+  - [Logistic regression](logistic-regression.pdf)
+  - Automating data analysis tasks
+
