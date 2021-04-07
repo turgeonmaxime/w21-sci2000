@@ -28,9 +28,9 @@ Chapter 5&amp;ndash;Inferences about a Mean Vector #  5.</description>
       <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
       
       <guid>https://maxturgeon.ca/w21-sci2000/slides/</guid>
-      <description>Slides #  The remaining slides will be posted here once the course is over. If you are registered for the course, you can find the material on UM Learn.
+      <description>Slides #  If you are registered for the course, you can find the material on UM Learn.
 Some of these slides borrow heavily from other sources. In particular, I would like to acknowledge R for Data Science and Rafael Irizarry&amp;rsquo;s notes on data visualization.
- Course overview Summary statistics Data visualization Principles of effective visualization) Linear regression  Residual analysis More examples   Relational data  Mutating joins Filtering joins RDBMS   Text data  Regular expressions Sentiment analysis   Web scraping  More scraping examples Scraping with XPath APIs    </description>
+ Course overview Summary statistics Data visualization Principles of effective visualization) Linear regression  Residual analysis More examples   Relational data  Mutating joins Filtering joins RDBMS   Text data  Regular expressions Sentiment analysis   Web scraping  More scraping examples Scraping with XPath APIs   Logistic regression Automating data analysis tasks  </description>
     </item>
     
     <item>
