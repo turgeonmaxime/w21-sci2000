@@ -26,7 +26,7 @@ Some of these slides borrow heavily from other sources. In particular, I would l
   - [Web scraping](web-scraping.pdf)
     + [More scraping examples](more-scraping-examples.pdf)
     + [Scraping with XPath](scraping-xpath.pdf)
-    + [APIs](apis.pdf); you can find the recorded lecture [here](https://youtu.be/znFXDImRTtc)
+    + [APIs](api.pdf); you can find the recorded lecture [here](https://youtu.be/znFXDImRTtc)
   - [Logistic regression](logistic-regression.pdf)
   - [Automating data analysis tasks](automation.pdf)
 

@@ -5,10 +5,6 @@
     <link>https://maxturgeon.ca/w21-sci2000/categories/</link>
     <description>Recent content in Categories on SCI 2000 - Winter 2021</description>
     <generator>Hugo -- gohugo.io</generator>
-    <language>en-ca</language>
-    
-	<atom:link href="https://maxturgeon.ca/w21-sci2000/categories/index.xml" rel="self" type="application/rss+xml" />
-    
-    
+    <language>en-ca</language><atom:link href="https://maxturgeon.ca/w21-sci2000/categories/index.xml" rel="self" type="application/rss+xml" />
   </channel>
 </rss>
